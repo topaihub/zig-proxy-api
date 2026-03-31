@@ -4,6 +4,7 @@ const registry_mod = @import("registry.zig");
 const openai = @import("formats/openai.zig");
 const gemini = @import("formats/gemini.zig");
 const claude = @import("formats/claude.zig");
+const codex = @import("formats/codex.zig");
 
 var arena_buf: [64 * 1024]u8 = undefined;
 var fba = std.heap.FixedBufferAllocator.init(&arena_buf);
@@ -37,6 +38,26 @@ fn geminiToClaudeReq(model: []const u8, raw_json: []const u8, _: bool) []const u
     return claude.fromOpenAI(a, intermediate, model) catch return raw_json;
 }
 
+fn openaiToCodexReq(model: []const u8, raw_json: []const u8, _: bool) []const u8 {
+    fba.reset();
+    return codex.fromOpenAI(fba.allocator(), raw_json, model) catch return raw_json;
+}
+
+fn codexToOpenaiReq(model: []const u8, raw_json: []const u8, _: bool) []const u8 {
+    fba.reset();
+    return codex.toOpenAI(fba.allocator(), raw_json, model) catch return raw_json;
+}
+
+fn geminiToCodexReq(model: []const u8, raw_json: []const u8, _: bool) []const u8 {
+    fba.reset();
+    return codex.fromGemini(fba.allocator(), raw_json, model) catch return raw_json;
+}
+
+fn claudeToCodexReq(model: []const u8, raw_json: []const u8, _: bool) []const u8 {
+    fba.reset();
+    return codex.fromClaude(fba.allocator(), raw_json, model) catch return raw_json;
+}
+
 /// Register all built-in translation pairs.
 pub fn registerAll(reg: *registry_mod.Registry) void {
     reg.register(.openai, .gemini, openaiToGeminiReq, .{});
@@ -44,6 +65,10 @@ pub fn registerAll(reg: *registry_mod.Registry) void {
     reg.register(.gemini, .openai, geminiToOpenaiReq, .{});
     reg.register(.claude, .gemini, claudeToGeminiReq, .{});
     reg.register(.gemini, .claude, geminiToClaudeReq, .{});
+    reg.register(.openai, .codex, openaiToCodexReq, .{});
+    reg.register(.codex, .openai, codexToOpenaiReq, .{});
+    reg.register(.gemini, .codex, geminiToCodexReq, .{});
+    reg.register(.claude, .codex, claudeToCodexReq, .{});
 }
 
 test "registerAll does not crash" {
@@ -54,4 +79,13 @@ test "registerAll does not crash" {
     // Verify a registered pair works
     const result = reg.translateRequest(.openai, .gemini, "model", "{\"model\":\"gpt-4\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", false);
     try std.testing.expect(result.len > 0);
+}
+
+test "codex translation pairs registered" {
+    var reg = registry_mod.Registry.init(std.testing.allocator);
+    defer reg.deinit();
+    registerAll(&reg);
+
+    const result = reg.translateRequest(.openai, .codex, "codex-mini", "{\"model\":\"gpt-4\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}", false);
+    try std.testing.expect(std.mem.indexOf(u8, result, "codex-mini") != null);
 }

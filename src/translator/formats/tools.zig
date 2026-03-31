@@ -55,7 +55,9 @@ pub fn openaiToolsToGemini(allocator: std.mem.Allocator, tools_json: []const u8)
             }
             if (func.parameters) |params| {
                 try w.writeAll(",\"parameters\":");
-                try std.json.stringify(params, .{}, w);
+                const params_json = try std.json.Stringify.valueAlloc(allocator, params, .{});
+                defer allocator.free(params_json);
+                try w.writeAll(params_json);
             }
             try w.writeAll("}");
         }
@@ -96,7 +98,6 @@ pub fn openaiToolCallToGemini(allocator: std.mem.Allocator, tool_call_json: []co
             try w.writeAll("{\"functionCall\":{\"name\":\"");
             try jsonEscape(w, func.name);
             try w.writeAll("\",\"args\":");
-            // arguments is a JSON string, write it directly
             if (func.arguments.len > 0) {
                 try w.writeAll(func.arguments);
             } else {
@@ -137,7 +138,9 @@ pub fn openaiToolsToClaude(allocator: std.mem.Allocator, tools_json: []const u8)
             }
             if (func.parameters) |params| {
                 try w.writeAll(",\"input_schema\":");
-                try std.json.stringify(params, .{}, w);
+                const params_json = try std.json.Stringify.valueAlloc(allocator, params, .{});
+                defer allocator.free(params_json);
+                try w.writeAll(params_json);
             }
             try w.writeAll("}");
         }
