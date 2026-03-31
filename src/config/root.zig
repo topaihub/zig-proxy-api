@@ -1,5 +1,7 @@
 pub const types = @import("types.zig");
 pub const loader = @import("loader.zig");
+pub const watcher = @import("watcher.zig");
+pub const ConfigWatcher = watcher.ConfigWatcher;
 pub const diff_mod = @import("diff.zig");
 pub const ConfigChanges = diff_mod.ConfigChanges;
 pub const configDiff = diff_mod.diff;
