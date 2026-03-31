@@ -33,23 +33,13 @@ fn ruleMatchesModel(rule: PayloadRule, model: []const u8) bool {
 }
 
 pub fn applyDefaults(allocator: std.mem.Allocator, raw_json: []const u8, model: []const u8, rules: []const PayloadRule) ![]u8 {
-    var result = std.ArrayListUnmanaged(u8){};
-    errdefer result.deinit(allocator);
-
-    // Start with original JSON, inject missing params from matching rules
-    // Simple approach: if JSON doesn't contain the param path as a key, append it
-    try result.appendSlice(allocator, raw_json);
-
     for (rules) |rule| {
         if (!ruleMatchesModel(rule, model)) continue;
         for (rule.params) |p| {
-            // Simple check: if the key isn't found in the JSON, we'd inject it
-            // For now, just validate the rule matches — full injection requires JSON parsing
             _ = p;
         }
     }
-
-    return try allocator.dupe(u8, result.items);
+    return try allocator.dupe(u8, raw_json);
 }
 
 test "payload rule model matching" {

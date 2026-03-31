@@ -11,6 +11,7 @@ pub const store = @import("store/root.zig");
 pub const management = @import("management/root.zig");
 pub const tui = @import("tui/root.zig");
 pub const api = @import("api/root.zig");
+pub const logging = @import("logging/root.zig");
 pub const wsrelay = @import("wsrelay/root.zig");
 pub const amp = @import("amp/root.zig");
 
