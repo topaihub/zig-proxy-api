@@ -1,4 +1,6 @@
 pub const ansi = @import("ansi.zig");
+pub const i18n = @import("i18n.zig");
+pub const client = @import("client.zig");
 pub const tabs = @import("tabs.zig");
 pub const Tab = tabs.Tab;
 
