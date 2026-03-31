@@ -1,6 +1,7 @@
 pub const types = @import("types.zig");
 pub const registry = @import("registry.zig");
 pub const pipeline = @import("pipeline.zig");
+pub const formats = @import("formats/root.zig");
 pub const Format = types.Format;
 pub const RequestTransform = types.RequestTransform;
 pub const ResponseStreamTransform = types.ResponseStreamTransform;
