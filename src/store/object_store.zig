@@ -68,15 +68,15 @@ pub const ObjectStore = struct {
         defer allocator.free(bp);
         var dir = std.fs.cwd().openDir(bp, .{ .iterate = true }) catch return try allocator.alloc([]const u8, 0);
         defer dir.close();
-        var list = std.ArrayList([]const u8).init(allocator);
+        var list: std.ArrayList([]const u8) = .empty;
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind != .file) continue;
             if (prefix.len == 0 or std.mem.startsWith(u8, entry.name, prefix)) {
-                try list.append(try allocator.dupe(u8, entry.name));
+                try list.append(allocator, try allocator.dupe(u8, entry.name));
             }
         }
-        return try list.toOwnedSlice();
+        return try list.toOwnedSlice(allocator);
     }
 
     fn name(_: *anyopaque) []const u8 {

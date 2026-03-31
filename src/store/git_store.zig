@@ -81,7 +81,7 @@ pub const GitStore = struct {
         defer allocator.free(dir_path);
         var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch return try allocator.alloc([]const u8, 0);
         defer dir.close();
-        var list = std.ArrayList([]const u8).init(allocator);
+        var list: std.ArrayList([]const u8) = .empty;
         var iter = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind != .file) continue;
@@ -89,10 +89,10 @@ pub const GitStore = struct {
             if (!std.mem.endsWith(u8, n, ".json")) continue;
             const key = n[0 .. n.len - 5];
             if (prefix.len == 0 or std.mem.startsWith(u8, key, prefix)) {
-                try list.append(try allocator.dupe(u8, key));
+                try list.append(allocator, try allocator.dupe(u8, key));
             }
         }
-        return try list.toOwnedSlice();
+        return try list.toOwnedSlice(allocator);
     }
 
     fn name(_: *anyopaque) []const u8 {
