@@ -25,7 +25,7 @@ test "all provider executors initialize" {
     var cx = codex.CodexExecutor.init("key");
     try std.testing.expectEqualStrings("codex", cx.executor().providerName());
     var cw = codex_ws.CodexWsExecutor.init("key");
-    try std.testing.expectEqualStrings("codex_ws", cw.executor().providerName());
+    try std.testing.expectEqualStrings("codex-ws", cw.executor().providerName());
     var q = qwen.QwenExecutor.init("key");
     try std.testing.expectEqualStrings("qwen", q.executor().providerName());
     var k = kimi.KimiExecutor.init("key");
