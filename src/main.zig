@@ -2,6 +2,7 @@ const std = @import("std");
 const framework = @import("framework");
 
 pub const server = @import("server/root.zig");
+pub const config = @import("config/root.zig");
 
 fn rootHandler(ctx: *server.Context) anyerror!void {
     try ctx.json(.ok, .{ .message = "CLI Proxy API Server (Zig)", .version = "0.1.0" });
