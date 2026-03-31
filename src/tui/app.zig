@@ -9,6 +9,25 @@ const usage_tab = @import("usage_tab.zig");
 const oauth_tab = @import("oauth_tab.zig");
 const keys_tab = @import("keys_tab.zig");
 
+const RawMode = struct {
+    original: std.posix.termios,
+
+    pub fn enable() !RawMode {
+        const original = try std.posix.tcgetattr(std.posix.STDIN_FILENO);
+        var new = original;
+        new.lflag.ICANON = false;
+        new.lflag.ECHO = false;
+        new.cc[@intFromEnum(std.posix.V.MIN)] = 0;
+        new.cc[@intFromEnum(std.posix.V.TIME)] = 1;
+        try std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, new);
+        return .{ .original = original };
+    }
+
+    pub fn disable(self: *RawMode) void {
+        std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, self.original) catch {};
+    }
+};
+
 pub const App = struct {
     allocator: std.mem.Allocator,
     current_tab: tabs.Tab = .dashboard,
@@ -21,6 +40,46 @@ pub const App = struct {
             .allocator = allocator,
             .stdout = std.fs.File.stdout(),
         };
+    }
+
+    pub fn handleInput(self: *App, byte: u8) bool {
+        switch (byte) {
+            'q' => return false,
+            '\t' => self.nextTab(),
+            'h' => self.prevTab(),
+            'l' => self.nextTab(),
+            '1'...'7' => |n| self.current_tab = @enumFromInt(n - '1'),
+            else => {},
+        }
+        return true;
+    }
+
+    pub fn run(self: *App) !void {
+        var raw = RawMode.enable() catch null;
+        defer if (raw) |*r| r.disable();
+
+        var writer = self.stdout.writer(&self.buf);
+        try writer.writeAll(ansi.hide_cursor);
+        try writer.flush();
+
+        self.running = true;
+        const stdin = std.fs.File.stdin();
+
+        while (self.running) {
+            writer = self.stdout.writer(&self.buf);
+            try writer.writeAll(ansi.clear_screen);
+            try writer.flush();
+            try self.renderTabBar();
+            try self.renderCurrentTab();
+
+            var input_buf: [1]u8 = undefined;
+            const n = stdin.read(&input_buf) catch 0;
+            if (n > 0 and !self.handleInput(input_buf[0])) break;
+        }
+
+        writer = self.stdout.writer(&self.buf);
+        try writer.writeAll(ansi.show_cursor);
+        try writer.flush();
     }
 
     pub fn nextTab(self: *App) void {
@@ -77,6 +136,16 @@ test "app tab navigation wraps around" {
     app.current_tab = .dashboard;
     app.prevTab();
     try std.testing.expectEqual(tabs.Tab.keys, app.current_tab);
+}
+
+test "handle input tab navigation" {
+    var app_inst = App.init(std.testing.allocator);
+    defer app_inst.deinit();
+    try std.testing.expect(app_inst.handleInput('\t'));
+    try std.testing.expectEqual(tabs.Tab.auth, app_inst.current_tab);
+    try std.testing.expect(app_inst.handleInput('1'));
+    try std.testing.expectEqual(tabs.Tab.dashboard, app_inst.current_tab);
+    try std.testing.expect(!app_inst.handleInput('q'));
 }
 
 test "render current tab does not error" {
