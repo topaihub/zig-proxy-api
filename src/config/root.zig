@@ -1,4 +1,8 @@
 pub const types = @import("types.zig");
+pub const loader = @import("loader.zig");
+pub const LoadedConfig = loader.LoadedConfig;
+pub const loadFromString = loader.loadFromString;
+pub const loadFromFile = loader.loadFromFile;
 pub const Config = types.Config;
 pub const TlsConfig = types.TlsConfig;
 pub const RemoteManagement = types.RemoteManagement;
