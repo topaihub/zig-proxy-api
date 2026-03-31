@@ -30,6 +30,12 @@ pub const VertexKey = types.VertexKey;
 pub const AmpModelMapping = types.AmpModelMapping;
 pub const AmpCode = types.AmpCode;
 
+pub const payload = @import("payload.zig");
+pub const PayloadRule = payload.PayloadRule;
+pub const ModelPattern = payload.ModelPattern;
+pub const ParamOverride = payload.ParamOverride;
+pub const applyDefaults = payload.applyDefaults;
+
 test {
     @import("std").testing.refAllDecls(@This());
 }

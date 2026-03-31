@@ -11,6 +11,8 @@ pub const store = @import("store/root.zig");
 pub const management = @import("management/root.zig");
 pub const tui = @import("tui/root.zig");
 pub const api = @import("api/root.zig");
+pub const wsrelay = @import("wsrelay/root.zig");
+pub const amp = @import("amp/root.zig");
 
 fn rootHandler(ctx: *server.Context) anyerror!void {
     try ctx.json(.ok, .{ .message = "CLI Proxy API Server (Zig)", .version = "0.1.0" });
