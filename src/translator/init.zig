@@ -23,11 +23,27 @@ fn geminiToOpenaiReq(model: []const u8, raw_json: []const u8, _: bool) []const u
     return gemini.toOpenAI(fba.allocator(), raw_json, model) catch return raw_json;
 }
 
+fn claudeToGeminiReq(_: []const u8, raw_json: []const u8, _: bool) []const u8 {
+    fba.reset();
+    const a = fba.allocator();
+    const intermediate = claude.toOpenAIReq(a, raw_json, "") catch return raw_json;
+    return openai.toGemini(a, intermediate) catch return raw_json;
+}
+
+fn geminiToClaudeReq(model: []const u8, raw_json: []const u8, _: bool) []const u8 {
+    fba.reset();
+    const a = fba.allocator();
+    const intermediate = gemini.toOpenAI(a, raw_json, model) catch return raw_json;
+    return claude.fromOpenAI(a, intermediate, model) catch return raw_json;
+}
+
 /// Register all built-in translation pairs.
 pub fn registerAll(reg: *registry_mod.Registry) void {
     reg.register(.openai, .gemini, openaiToGeminiReq, .{});
     reg.register(.openai, .claude, openaiToClaudeReq, .{});
     reg.register(.gemini, .openai, geminiToOpenaiReq, .{});
+    reg.register(.claude, .gemini, claudeToGeminiReq, .{});
+    reg.register(.gemini, .claude, geminiToClaudeReq, .{});
 }
 
 test "registerAll does not crash" {

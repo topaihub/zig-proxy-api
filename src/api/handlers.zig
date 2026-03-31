@@ -25,6 +25,22 @@ pub const ApiHandlers = struct {
         try self.handleRequest(ctx, .openai, "openai");
     }
 
+    fn isStreamRequest(body: []const u8) bool {
+        return std.mem.indexOf(u8, body, "\"stream\":true") != null or
+            std.mem.indexOf(u8, body, "\"stream\": true") != null;
+    }
+
+    fn writeAsSSE(ctx: *server.Context, data: []const u8) !void {
+        ctx.setHeader("Content-Type", "text/event-stream");
+        ctx.setHeader("Cache-Control", "no-cache");
+        ctx.setHeader("Connection", "keep-alive");
+        var buf = &ctx.response_buf;
+        try buf.appendSlice(ctx.allocator, "data: ");
+        try buf.appendSlice(ctx.allocator, data);
+        try buf.appendSlice(ctx.allocator, "\n\ndata: [DONE]\n\n");
+        ctx.response_status = .ok;
+    }
+
     /// POST /v1/messages — Claude-compatible endpoint
     pub fn claudeMessages(self: *ApiHandlers, ctx: *server.Context) !void {
         try self.handleRequest(ctx, .claude, "claude");
@@ -46,16 +62,19 @@ pub const ApiHandlers = struct {
             return;
         };
 
+        const stream = isStreamRequest(body);
         const model = extractModel(body) orelse "";
         const provider = providerFromModel(model) orelse default_provider;
 
         const exec = self.executor_registry.find(provider) orelse {
-            // No executor configured — passthrough the body as-is
-            try ctx.raw(.ok, body);
+            if (stream) {
+                try writeAsSSE(ctx, body);
+            } else {
+                try ctx.raw(.ok, body);
+            }
             return;
         };
 
-        // Determine target format from provider name
         const target_format = formatFromProvider(provider);
         const translated = self.translator_registry.translateRequest(
             source_format,
@@ -74,7 +93,11 @@ pub const ApiHandlers = struct {
             .original_request = body,
         });
 
-        try ctx.raw(@enumFromInt(resp.status_code), resp.payload);
+        if (stream) {
+            try writeAsSSE(ctx, resp.payload);
+        } else {
+            try ctx.raw(@enumFromInt(resp.status_code), resp.payload);
+        }
     }
 
     fn formatFromProvider(provider: []const u8) translator.Format {
@@ -127,4 +150,21 @@ test "providerFromModel maps known prefixes" {
     try std.testing.expectEqualStrings("claude", ApiHandlers.providerFromModel("claude-sonnet-4").?);
     try std.testing.expectEqualStrings("openai", ApiHandlers.providerFromModel("gpt-4").?);
     try std.testing.expect(ApiHandlers.providerFromModel("") == null);
+}
+
+test "isStreamRequest detects stream flag" {
+    try std.testing.expect(ApiHandlers.isStreamRequest("{\"stream\":true,\"model\":\"gpt-4\"}"));
+    try std.testing.expect(ApiHandlers.isStreamRequest("{\"stream\": true}"));
+    try std.testing.expect(!ApiHandlers.isStreamRequest("{\"stream\":false}"));
+    try std.testing.expect(!ApiHandlers.isStreamRequest("{\"model\":\"gpt-4\"}"));
+}
+
+test "writeAsSSE wraps data as SSE event" {
+    var ctx = server.Context.initTest(.POST, "/v1/chat/completions", std.testing.allocator);
+    defer ctx.deinit();
+    try ApiHandlers.writeAsSSE(&ctx, "{\"choices\":[]}");
+    const body = ctx.testResponseBody();
+    try std.testing.expect(std.mem.startsWith(u8, body, "data: "));
+    try std.testing.expect(std.mem.indexOf(u8, body, "data: [DONE]\n\n") != null);
+    try std.testing.expectEqual(std.http.Status.ok, ctx.response_status);
 }

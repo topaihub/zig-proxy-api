@@ -99,6 +99,30 @@ pub fn fromOpenAI(allocator: std.mem.Allocator, raw_json: []const u8, model: []c
     return try allocator.dupe(u8, buf.items);
 }
 
+/// Convert Claude messages request to OpenAI chat request.
+pub fn toOpenAIReq(allocator: std.mem.Allocator, raw_json: []const u8, model: []const u8) ![]u8 {
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const parsed = try std.json.parseFromSlice(MessagesRequest, arena, raw_json, .{ .ignore_unknown_fields = true });
+    const req = parsed.value;
+
+    var msgs: std.ArrayList(openai.Message) = .empty;
+    if (req.system) |s| try msgs.append(arena, .{ .role = "system", .content = s });
+    for (req.messages) |m| try msgs.append(arena, .{ .role = m.role, .content = m.content });
+
+    const oai = openai.ChatRequest{
+        .model = model,
+        .messages = msgs.items,
+        .stream = req.stream,
+        .temperature = req.temperature,
+        .max_tokens = req.max_tokens,
+        .top_p = req.top_p,
+    };
+    return try std.json.Stringify.valueAlloc(allocator, oai, .{ .emit_null_optional_fields = false });
+}
+
 /// Convert Claude messages response to OpenAI chat completion response.
 pub fn toOpenAI(allocator: std.mem.Allocator, raw_json: []const u8, model: []const u8) ![]u8 {
     var arena_state = std.heap.ArenaAllocator.init(allocator);
