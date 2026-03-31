@@ -13,3 +13,6 @@ pub const buildChain = middleware.buildChain;
 
 pub const sse = @import("sse.zig");
 pub const SseWriter = sse.SseWriter;
+
+pub const websocket = @import("websocket.zig");
+pub const WebSocketOpcode = websocket.Opcode;
