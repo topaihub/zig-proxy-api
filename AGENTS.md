@@ -1,86 +1,40 @@
-# AGENTS.md — zig-proxy-api Development Rules
+# AGENTS.md — zig-proxy-api
 
-## Logging Rules (MANDATORY)
+A Zig rewrite of CLIProxyAPI using zig-framework (vnext branch).
 
-Every code change MUST follow the framework logging conventions. Violations will be rejected in code review.
+## Rules
 
-### Rule 1: HTTP/API entry points → RequestTrace
+Before writing any code, read the relevant rule documents:
 
-Any function that handles an inbound HTTP request MUST wrap the handler body in a `RequestTrace`:
+- **Logging**: `docs/rules/logging.md` — RequestTrace, MethodTrace, StepTrace, structured logging. MANDATORY for all code changes.
+- **Code Style**: `docs/rules/code-style.md` — naming, patterns, error handling, memory.
+- **Architecture**: `docs/rules/architecture.md` — module dependencies, adding providers, adding routes.
 
-```zig
-var trace = try framework.observability.request_trace.begin(allocator, logger, .http, request_id, method, path, query);
-defer trace.deinit();
-// ... handle request ...
-framework.observability.request_trace.complete(logger, &trace, status_code, error_code);
+## Quick Reminders
+
+- Use framework Logger, never `std.debug.print`
+- HTTP entry → RequestTrace, business method → MethodTrace, external call → StepTrace
+- Structured fields via `LogField.string/int/boolean`, not string interpolation in messages
+- vtable interfaces for polymorphism
+- Every module has `root.zig` with `refAllDecls` test
+- Run `scripts/check-logging.sh` before committing
+
+## Project Structure
+
 ```
-
-### Rule 2: Business methods → MethodTrace
-
-Any method that performs a significant operation (translation, execution, auth flow, config write) MUST use `MethodTrace`:
-
-```zig
-var mt = try framework.MethodTrace.begin(allocator, logger, "Module.Method", input_summary, threshold_ms);
-defer mt.deinit();
-// ... do work ...
-mt.finishSuccess("result_summary", false);
-// or on error: mt.finishError("ErrorType", error_code, false);
+src/
+├── main.zig          Entry point, all module wiring
+├── server/           HTTP server, router, middleware, SSE, WebSocket, TLS
+├── config/           JSON config, loader, watcher, diff, hot-reload, payload rules
+├── auth/             Auth types, file store, API key, OAuth providers, callbacks, refresh, cloak
+├── translator/       Format types, registry, pipeline, streaming, thinking, tools, multimodal
+├── executor/         Executor interface, base, 12 provider executors
+├── scheduler/        Credential selector, cooldown, model registry
+├── store/            Git, PostgreSQL, Object storage backends
+├── management/       Management API endpoints
+├── logging/          Request logger
+├── api/              API request handlers
+├── tui/              Terminal UI, tabs, i18n, management client
+├── wsrelay/          WebSocket relay
+└── amp/              Amp CLI integration
 ```
-
-### Rule 3: External calls → StepTrace
-
-Any call to an external system (HTTP to AI provider, database, file I/O) MUST use `StepTrace`:
-
-```zig
-var st = try framework.StepTrace.begin(allocator, logger, "subsystem/operation", step_name, threshold_ms);
-defer st.deinit();
-// ... external call ...
-st.finish(null); // or st.finish("ERROR_CODE");
-```
-
-### Rule 4: State changes → Structured logging
-
-State changes (config reload, auth update, credential selection) MUST use structured logging with fields:
-
-```zig
-logger.subsystem("config").info("configuration reloaded", &.{
-    framework.LogField.string("path", config_path),
-    framework.LogField.boolean("changed", true),
-});
-```
-
-### Rule 5: NEVER do these
-
-- NEVER put variable values in the message string — use LogField instead
-- NEVER use `std.debug.print` or `std.log` — use framework Logger
-- NEVER skip logging in error paths
-- NEVER log sensitive data (tokens, keys, passwords) without redaction
-
-### Subsystem naming convention
-
-Use slash-separated lowercase paths:
-- `server/http`, `server/ws`
-- `auth/oauth`, `auth/refresh`, `auth/callback`
-- `config/loader`, `config/watcher`
-- `executor/{provider}` (e.g., `executor/gemini`, `executor/claude`)
-- `translator/{from}_{to}` (e.g., `translator/openai_gemini`)
-- `scheduler/selector`, `scheduler/cooldown`
-- `management/api`
-
-### Threshold guidelines
-
-| Operation | Threshold (ms) |
-|-----------|---------------|
-| HTTP request (total) | 30000 |
-| Provider API call | 5000 |
-| Translation | 100 |
-| Config reload | 1000 |
-| Auth token refresh | 5000 |
-| File I/O | 500 |
-
-## Code Style
-
-- Follow existing patterns in the codebase
-- Use vtable interfaces for polymorphism
-- All public types need tests
-- Use `std.json` for JSON, manual building with `ArrayListUnmanaged(u8)` for complex output
