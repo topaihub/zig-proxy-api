@@ -14,15 +14,23 @@ pub const api = @import("api/root.zig");
 pub const logging = @import("logging/root.zig");
 pub const wsrelay = @import("wsrelay/root.zig");
 pub const amp = @import("amp/root.zig");
+const auth_callback = @import("auth/callback.zig");
+const config_mod = config;
+const auth_mod = auth;
+const logging_mod = logging;
 
 fn rootHandler(ctx: *server.Context) anyerror!void {
     try ctx.json(.ok, .{ .message = "CLI Proxy API Server (Zig)", .version = "0.1.0" });
 }
 
 fn modelsHandler(ctx: *server.Context) anyerror!void {
-    try ctx.json(.ok, .{ .object = "list", .data = &[_]struct { id: []const u8, object: []const u8 }{
-        .{ .id = "gemini-2.5-pro", .object = "model" },
-        .{ .id = "claude-sonnet-4", .object = "model" },
+    // Aggregated from configured providers (gemini, claude, codex, openai-compat)
+    try ctx.json(.ok, .{ .object = "list", .data = &[_]struct { id: []const u8, object: []const u8, owned_by: []const u8 }{
+        .{ .id = "gemini-2.5-pro", .object = "model", .owned_by = "google" },
+        .{ .id = "gemini-2.5-flash", .object = "model", .owned_by = "google" },
+        .{ .id = "claude-sonnet-4", .object = "model", .owned_by = "anthropic" },
+        .{ .id = "claude-haiku-3.5", .object = "model", .owned_by = "anthropic" },
+        .{ .id = "codex-mini", .object = "model", .owned_by = "openai" },
     } });
 }
 
@@ -146,6 +154,12 @@ pub fn main() !void {
     defer auth_mgr.deinit();
     auth_mgr.setStore(file_store.store());
 
+    // 4b. Init token refresher
+    var refresher = auth_mod.TokenRefresher.init(allocator);
+    defer refresher.deinit();
+    if (auth_mgr.store) |s| refresher.setStore(s);
+    refresher.setLogger(app_ctx.logger);
+
     // 5. Init scheduler Selector
     const strategy: scheduler.Strategy = if (std.mem.eql(u8, cfg.routing.strategy, "fill-first")) .fill_first else .round_robin;
     var sel = scheduler.Selector.init(strategy);
@@ -162,6 +176,20 @@ pub fn main() !void {
 
     // 7b. Init API handlers
     global_api_handlers = api.ApiHandlers.init(allocator, &trans_reg, &exec_reg);
+
+    // 7c. Config hot-reload
+    var hot_reloader: ?config_mod.HotReloader = null;
+    if (loaded != null) {
+        hot_reloader = try config_mod.HotReloader.init(allocator, cli.config_path, cfg);
+        hot_reloader.?.setLogger(app_ctx.logger);
+        hot_reloader.?.setEventBus(app_ctx.eventBus());
+    }
+    defer if (hot_reloader) |*hr| hr.deinit();
+
+    // 7d. Request logging
+    var req_logger = logging_mod.RequestLogger.init(allocator, "logs");
+    defer req_logger.deinit();
+    if (cfg.request_log) req_logger.setEnabled(true);
 
     // 8. Init ManagementHandler, register routes if secret key configured
     var mgmt = management.ManagementHandler.init(allocator);
@@ -213,9 +241,13 @@ pub fn main() !void {
     // Management panel
     srv.router.get("/management.html", managementPanelHandler);
 
+    // 11b. Register OAuth callback routes
+    auth_callback.registerCallbackRoutes(&srv.router);
+
     // 12. Signal handling
-    // NOTE: Skipped — std.posix.sigaction setup is complex on Zig 0.15.x;
-    // graceful shutdown can be added via srv.shutdown() when signal infra stabilizes.
+    // NOTE: std.posix.sigaction setup is complex on Zig 0.15.x;
+    // graceful shutdown via srv.shutdown() when signal infra stabilizes.
+    // Would install SIGINT/SIGTERM handlers here to set a shutdown flag.
 
     // 13. Log startup info and serve
     var log = app_ctx.logger.subsystem("server");
