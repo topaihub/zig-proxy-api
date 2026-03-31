@@ -1,4 +1,5 @@
 const std = @import("std");
+const framework = @import("framework");
 const types = @import("../types.zig");
 
 pub const OpenAICompatExecutor = struct {
@@ -18,11 +19,33 @@ pub const OpenAICompatExecutor = struct {
         .provider_name = nameErased,
     };
 
-    fn executeErased(_: *anyopaque, _: std.mem.Allocator, _: types.Request, _: types.Options) anyerror!types.Response {
-        return .{ .status_code = 200, .payload = "{\"stub\":true}" };
+    fn executeErased(ptr: *anyopaque, allocator: std.mem.Allocator, req: types.Request, _: types.Options) anyerror!types.Response {
+        const self: *OpenAICompatExecutor = @ptrCast(@alignCast(ptr));
+
+        const url = try std.fmt.allocPrint(allocator, "{s}/v1/chat/completions", .{self.base_url});
+        const auth_value = try std.fmt.allocPrint(allocator, "Bearer {s}", .{self.api_key});
+
+        var client = framework.NativeHttpClient.init(null);
+        const response = try client.send(allocator, .{
+            .method = .POST,
+            .url = url,
+            .headers = &.{
+                .{ .name = "Content-Type", .value = "application/json" },
+                .{ .name = "Authorization", .value = auth_value },
+            },
+            .body = req.payload,
+        });
+
+        return .{ .status_code = response.status_code, .payload = response.body };
     }
 
     fn nameErased(_: *anyopaque) []const u8 {
         return "openai_compat";
     }
 };
+
+test "openai_compat executor has correct defaults" {
+    var exec = OpenAICompatExecutor.init("https://localhost:8080", "test-key");
+    try std.testing.expectEqualStrings("openai_compat", exec.executor().providerName());
+    try std.testing.expectEqualStrings("https://localhost:8080", exec.base_url);
+}

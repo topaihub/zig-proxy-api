@@ -19,7 +19,7 @@ pub const CodexWsExecutor = struct {
     };
 
     fn executeErased(_: *anyopaque, _: std.mem.Allocator, _: types.Request, _: types.Options) anyerror!types.Response {
-        return .{ .status_code = 200, .payload = "{\"stub\":true}" };
+        return .{ .status_code = 501, .payload = "{\"error\":\"codex_ws requires WebSocket transport, not supported via HTTP executor\"}" };
     }
 
     fn nameErased(_: *anyopaque) []const u8 {
