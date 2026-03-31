@@ -10,3 +10,6 @@ pub const Group = router.Group;
 pub const middleware = @import("middleware.zig");
 pub const Middleware = middleware.Middleware;
 pub const buildChain = middleware.buildChain;
+
+pub const sse = @import("sse.zig");
+pub const SseWriter = sse.SseWriter;
