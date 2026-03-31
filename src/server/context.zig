@@ -72,10 +72,12 @@ pub const Context = struct {
         }
     }
 
-    pub fn json(self: *Context, status: std.http.Status, value: anytype) !void {
+    pub fn json(self: *Context, status: std.http.Status, val: anytype) !void {
         self.response_status = status;
         self.setHeader("Content-Type", "application/json");
-        std.json.stringify(value, .{}, self.response_buf.writer(self.allocator)) catch |err| return err;
+        const slice = std.json.Stringify.valueAlloc(self.allocator, val, .{}) catch return error.OutOfMemory;
+        defer self.allocator.free(slice);
+        try self.response_buf.appendSlice(self.allocator, slice);
         self.response_started = true;
     }
 

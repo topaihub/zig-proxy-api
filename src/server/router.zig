@@ -44,13 +44,11 @@ pub const Group = struct {
     }
 
     fn prefixed(self: Group, p: []const u8) []const u8 {
-        // For simplicity, we store the concatenation in a buffer owned by the caller.
-        // Since routes are string literals in practice, we just rely on the caller.
-        // We'll do a runtime concat using the router's allocator.
         if (p.len == 0 or std.mem.eql(u8, p, "/")) return self.prefix;
         const buf = self.router.allocator.alloc(u8, self.prefix.len + p.len) catch @panic("OOM");
         @memcpy(buf[0..self.prefix.len], self.prefix);
         @memcpy(buf[self.prefix.len..], p);
+        self.router.trackAlloc(buf);
         return buf;
     }
 };
@@ -58,6 +56,7 @@ pub const Group = struct {
 pub const Router = struct {
     allocator: std.mem.Allocator,
     root: *Node,
+    alloc_bufs: std.ArrayListUnmanaged([]const u8) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) Router {
         const root = allocator.create(Node) catch @panic("OOM");
@@ -66,7 +65,13 @@ pub const Router = struct {
     }
 
     pub fn deinit(self: *Router) void {
+        for (self.alloc_bufs.items) |buf| self.allocator.free(buf);
+        self.alloc_bufs.deinit(self.allocator);
         self.root.deinit(self.allocator);
+    }
+
+    fn trackAlloc(self: *Router, buf: []const u8) void {
+        self.alloc_bufs.append(self.allocator, buf) catch @panic("OOM");
     }
 
     pub fn get(self: *Router, p: []const u8, h: Handler) void {

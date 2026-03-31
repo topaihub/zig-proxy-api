@@ -14,8 +14,8 @@ var stored_len: usize = 0;
 fn makeStep(comptime i: usize) Handler {
     return &struct {
         fn handler(c: *Context) anyerror!void {
-            if (i < stored_len) {
-                return stored_middlewares[i](c, makeStep(i + 1));
+            if (i < max_middlewares and i < stored_len) {
+                return stored_middlewares[i](c, makeStep(if (i + 1 < max_middlewares) i + 1 else i));
             } else {
                 return stored_final(c);
             }

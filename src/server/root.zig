@@ -16,3 +16,13 @@ pub const SseWriter = sse.SseWriter;
 
 pub const websocket = @import("websocket.zig");
 pub const WebSocketOpcode = websocket.Opcode;
+
+pub const http_server = @import("http_server.zig");
+pub const HttpServer = http_server.HttpServer;
+pub const ServerConfig = http_server.ServerConfig;
+
+const std = @import("std");
+
+test {
+    std.testing.refAllDecls(@This());
+}
