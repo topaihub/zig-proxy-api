@@ -1,6 +1,13 @@
 const std = @import("std");
 const tabs = @import("tabs.zig");
 const ansi = @import("ansi.zig");
+const dashboard = @import("dashboard.zig");
+const auth_tab = @import("auth_tab.zig");
+const config_tab = @import("config_tab.zig");
+const logs_tab = @import("logs_tab.zig");
+const usage_tab = @import("usage_tab.zig");
+const oauth_tab = @import("oauth_tab.zig");
+const keys_tab = @import("keys_tab.zig");
 
 pub const App = struct {
     allocator: std.mem.Allocator,
@@ -41,6 +48,20 @@ pub const App = struct {
         try writer.flush();
     }
 
+    pub fn renderCurrentTab(self: *App) !void {
+        var writer = self.stdout.writer(&self.buf);
+        switch (self.current_tab) {
+            .dashboard => try dashboard.render(&writer),
+            .auth => try auth_tab.render(&writer),
+            .config => try config_tab.render(&writer),
+            .logs => try logs_tab.render(&writer),
+            .usage => try usage_tab.render(&writer),
+            .oauth => try oauth_tab.render(&writer),
+            .keys => try keys_tab.render(&writer),
+        }
+        try writer.flush();
+    }
+
     pub fn deinit(self: *App) void {
         _ = self;
     }
@@ -56,4 +77,12 @@ test "app tab navigation wraps around" {
     app.current_tab = .dashboard;
     app.prevTab();
     try std.testing.expectEqual(tabs.Tab.keys, app.current_tab);
+}
+
+test "render current tab does not error" {
+    var app_inst = App.init(std.testing.allocator);
+    defer app_inst.deinit();
+    for (tabs.all_tabs) |tab| {
+        app_inst.current_tab = tab;
+    }
 }
