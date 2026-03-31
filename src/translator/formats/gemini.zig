@@ -33,18 +33,21 @@ pub const GenerateContentResponse = struct {
 };
 
 /// Convert a Gemini GenerateContentRequest to an OpenAI ChatRequest JSON blob.
+/// Caller owns the returned slice and must free it with the provided allocator.
 pub fn toOpenAI(allocator: std.mem.Allocator, raw_json: []const u8, model: []const u8) ![]u8 {
-    const parsed = try std.json.parseFromSlice(GenerateContentRequest, allocator, raw_json, .{ .ignore_unknown_fields = true });
-    defer parsed.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const parsed = try std.json.parseFromSlice(GenerateContentRequest, arena, raw_json, .{ .ignore_unknown_fields = true });
     const req = parsed.value;
 
     var messages: std.ArrayList(openai.Message) = .empty;
-    defer messages.deinit(allocator);
 
     if (req.systemInstruction) |si| {
         for (si.parts) |part| {
             if (part.text) |t| {
-                try messages.append(allocator, .{ .role = "system", .content = t });
+                try messages.append(arena, .{ .role = "system", .content = t });
             }
         }
     }
@@ -52,12 +55,12 @@ pub fn toOpenAI(allocator: std.mem.Allocator, raw_json: []const u8, model: []con
     for (req.contents) |content| {
         const text = if (content.parts.len > 0) content.parts[0].text else null;
         const role: []const u8 = if (std.mem.eql(u8, content.role, "model")) "assistant" else "user";
-        try messages.append(allocator, .{ .role = role, .content = text });
+        try messages.append(arena, .{ .role = role, .content = text });
     }
 
     const openai_req = openai.ChatRequest{
         .model = model,
-        .messages = try messages.toOwnedSlice(allocator),
+        .messages = messages.items,
         .temperature = if (req.generationConfig) |gc| gc.temperature else null,
         .max_tokens = if (req.generationConfig) |gc| gc.maxOutputTokens else null,
         .top_p = if (req.generationConfig) |gc| gc.topP else null,

@@ -29,24 +29,26 @@ pub const ChatResponse = struct {
 };
 
 /// Convert an OpenAI ChatRequest to a Gemini GenerateContentRequest JSON blob.
+/// Caller owns the returned slice and must free it with the provided allocator.
 pub fn toGemini(allocator: std.mem.Allocator, raw_json: []const u8) ![]u8 {
-    const parsed = try std.json.parseFromSlice(ChatRequest, allocator, raw_json, .{ .ignore_unknown_fields = true });
-    defer parsed.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const parsed = try std.json.parseFromSlice(ChatRequest, arena, raw_json, .{ .ignore_unknown_fields = true });
     const req = parsed.value;
 
     var system_parts: std.ArrayList(gemini.Part) = .empty;
-    defer system_parts.deinit(allocator);
     var contents: std.ArrayList(gemini.Content) = .empty;
-    defer contents.deinit(allocator);
 
     for (req.messages) |msg| {
         if (std.mem.eql(u8, msg.role, "system")) {
-            try system_parts.append(allocator, .{ .text = msg.content });
+            try system_parts.append(arena, .{ .text = msg.content });
         } else {
             const role: []const u8 = if (std.mem.eql(u8, msg.role, "assistant")) "model" else "user";
-            const parts = try allocator.alloc(gemini.Part, 1);
+            const parts = try arena.alloc(gemini.Part, 1);
             parts[0] = .{ .text = msg.content };
-            try contents.append(allocator, .{ .role = role, .parts = parts });
+            try contents.append(arena, .{ .role = role, .parts = parts });
         }
     }
 
@@ -60,11 +62,12 @@ pub fn toGemini(allocator: std.mem.Allocator, raw_json: []const u8) ![]u8 {
     }
 
     const gemini_req = gemini.GenerateContentRequest{
-        .contents = try contents.toOwnedSlice(allocator),
+        .contents = contents.items,
         .generationConfig = gen_config,
-        .systemInstruction = if (system_parts.items.len > 0) .{ .role = "user", .parts = try system_parts.toOwnedSlice(allocator) } else null,
+        .systemInstruction = if (system_parts.items.len > 0) .{ .role = "user", .parts = system_parts.items } else null,
     };
 
+    // Serialize using the caller's allocator so the result outlives the arena
     return try std.json.Stringify.valueAlloc(allocator, gemini_req, .{ .emit_null_optional_fields = false });
 }
 
