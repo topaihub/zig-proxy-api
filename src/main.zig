@@ -10,6 +10,7 @@ pub const scheduler = @import("scheduler/root.zig");
 pub const store = @import("store/root.zig");
 pub const management = @import("management/root.zig");
 pub const tui = @import("tui/root.zig");
+pub const api = @import("api/root.zig");
 
 fn rootHandler(ctx: *server.Context) anyerror!void {
     try ctx.json(.ok, .{ .message = "CLI Proxy API Server (Zig)", .version = "0.1.0" });
@@ -23,12 +24,16 @@ fn modelsHandler(ctx: *server.Context) anyerror!void {
 }
 
 fn chatCompletionsHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.chatCompletions(ctx);
     try ctx.json(.ok, .{ .object = "chat.completion", .model = "stub" });
 }
 
 fn messagesHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.claudeMessages(ctx);
     try ctx.json(.ok, .{ .type = "message", .model = "stub" });
 }
+
+var global_api_handlers: ?api.ApiHandlers = null;
 
 const CliArgs = struct {
     config_path: []const u8 = "config.json",
@@ -88,10 +93,14 @@ pub fn main() !void {
     // 6. Init translator Registry
     var trans_reg = translator.Registry.init(allocator);
     defer trans_reg.deinit();
+    translator.registerAll(&trans_reg);
 
     // 7. Init executor ExecutorRegistry
     var exec_reg = executor.ExecutorRegistry.init(allocator);
     defer exec_reg.deinit();
+
+    // 7b. Init API handlers
+    global_api_handlers = api.ApiHandlers.init(allocator, &trans_reg, &exec_reg);
 
     // 8. Init ManagementHandler, register routes if secret key configured
     var mgmt = management.ManagementHandler.init(allocator);
