@@ -1,4 +1,5 @@
 const std = @import("std");
+const framework = @import("framework");
 const types = @import("../types.zig");
 
 pub const ClaudeExecutor = struct {
@@ -18,11 +19,33 @@ pub const ClaudeExecutor = struct {
         .provider_name = nameErased,
     };
 
-    fn executeErased(_: *anyopaque, _: std.mem.Allocator, _: types.Request, _: types.Options) anyerror!types.Response {
-        return .{ .status_code = 200, .payload = "{\"stub\":true}" };
+    fn executeErased(ptr: *anyopaque, allocator: std.mem.Allocator, req: types.Request, _: types.Options) anyerror!types.Response {
+        const self: *ClaudeExecutor = @ptrCast(@alignCast(ptr));
+
+        const url = try std.fmt.allocPrint(allocator, "{s}/v1/messages", .{self.base_url});
+
+        var client = framework.NativeHttpClient.init(null);
+        const response = try client.send(allocator, .{
+            .method = .POST,
+            .url = url,
+            .headers = &.{
+                .{ .name = "Content-Type", .value = "application/json" },
+                .{ .name = "x-api-key", .value = self.api_key },
+                .{ .name = "anthropic-version", .value = "2023-06-01" },
+            },
+            .body = req.payload,
+        });
+
+        return .{ .status_code = response.status_code, .payload = response.body };
     }
 
     fn nameErased(_: *anyopaque) []const u8 {
         return "claude";
     }
 };
+
+test "claude executor has correct defaults" {
+    var exec = ClaudeExecutor.init("test-key");
+    try std.testing.expectEqualStrings("claude", exec.executor().providerName());
+    try std.testing.expectEqualStrings("https://api.anthropic.com", exec.base_url);
+}

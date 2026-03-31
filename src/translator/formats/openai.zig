@@ -71,6 +71,103 @@ pub fn toGemini(allocator: std.mem.Allocator, raw_json: []const u8) ![]u8 {
     return try std.json.Stringify.valueAlloc(allocator, gemini_req, .{ .emit_null_optional_fields = false });
 }
 
+/// Escape a string for safe inclusion in a JSON string value.
+fn jsonEscape(w: anytype, s: []const u8) !void {
+    for (s) |c| switch (c) {
+        '"' => try w.writeAll("\\\""),
+        '\\' => try w.writeAll("\\\\"),
+        '\n' => try w.writeAll("\\n"),
+        '\r' => try w.writeAll("\\r"),
+        '\t' => try w.writeAll("\\t"),
+        else => try w.writeByte(c),
+    };
+}
+
+/// Convert a Gemini generateContent response to OpenAI chat completion response.
+pub fn fromGeminiResponse(allocator: std.mem.Allocator, raw_json: []const u8, model: []const u8) ![]u8 {
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const parsed = try std.json.parseFromSlice(gemini.GenerateContentResponse, arena, raw_json, .{ .ignore_unknown_fields = true });
+    const resp = parsed.value;
+
+    var text: []const u8 = "";
+    var finish: []const u8 = "stop";
+    if (resp.candidates.len > 0) {
+        const c = resp.candidates[0];
+        if (c.content.parts.len > 0) {
+            if (c.content.parts[0].text) |t| text = t;
+        }
+        if (c.finishReason) |fr| {
+            finish = if (std.mem.eql(u8, fr, "STOP")) "stop" else fr;
+        }
+    }
+
+    var buf: std.ArrayListUnmanaged(u8) = .{};
+    defer buf.deinit(allocator);
+    const w = buf.writer(allocator);
+    try w.writeAll("{\"id\":\"chatcmpl-gemini\",\"object\":\"chat.completion\",\"model\":\"");
+    try jsonEscape(w, model);
+    try w.writeAll("\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"");
+    try jsonEscape(w, text);
+    try w.writeAll("\"},\"finish_reason\":\"");
+    try jsonEscape(w, finish);
+    try w.writeAll("\"}]}");
+    return try allocator.dupe(u8, buf.items);
+}
+
+/// Convert a Claude messages response to OpenAI chat completion response.
+pub fn fromClaudeResponse(allocator: std.mem.Allocator, raw_json: []const u8, model: []const u8) ![]u8 {
+    const claude = @import("claude.zig");
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const parsed = try std.json.parseFromSlice(claude.MessagesResponse, arena, raw_json, .{ .ignore_unknown_fields = true });
+    const resp = parsed.value;
+
+    var text: []const u8 = "";
+    if (resp.content.len > 0) {
+        if (resp.content[0].text) |t| text = t;
+    }
+    const finish: []const u8 = if (resp.stop_reason) |sr|
+        (if (std.mem.eql(u8, sr, "end_turn")) "stop" else sr)
+    else
+        "stop";
+
+    var buf: std.ArrayListUnmanaged(u8) = .{};
+    defer buf.deinit(allocator);
+    const w = buf.writer(allocator);
+    try w.writeAll("{\"id\":\"");
+    try jsonEscape(w, resp.id);
+    try w.writeAll("\",\"object\":\"chat.completion\",\"model\":\"");
+    try jsonEscape(w, model);
+    try w.writeAll("\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"");
+    try jsonEscape(w, text);
+    try w.writeAll("\"},\"finish_reason\":\"");
+    try jsonEscape(w, finish);
+    try w.writeAll("\"}]}");
+    return try allocator.dupe(u8, buf.items);
+}
+
+test "openai fromGeminiResponse converts correctly" {
+    const gemini_resp = "{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"Hello!\"}]},\"finishReason\":\"STOP\"}]}";
+    const result = try fromGeminiResponse(std.testing.allocator, gemini_resp, "gemini-2.5-pro");
+    defer std.testing.allocator.free(result);
+    try std.testing.expect(std.mem.indexOf(u8, result, "Hello!") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "chat.completion") != null);
+}
+
+test "openai fromClaudeResponse converts correctly" {
+    const claude_resp = "{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-4\",\"content\":[{\"type\":\"text\",\"text\":\"Hello!\"}],\"stop_reason\":\"end_turn\"}";
+    const result = try fromClaudeResponse(std.testing.allocator, claude_resp, "claude-sonnet-4");
+    defer std.testing.allocator.free(result);
+    try std.testing.expect(std.mem.indexOf(u8, result, "Hello!") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "chat.completion") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "msg_01") != null);
+}
+
 test "parse openai chat request" {
     const json = "{\"model\":\"gpt-4\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}],\"stream\":true}";
     const parsed = try std.json.parseFromSlice(ChatRequest, std.testing.allocator, json, .{ .ignore_unknown_fields = true });
