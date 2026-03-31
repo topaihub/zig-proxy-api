@@ -1,4 +1,5 @@
 const std = @import("std");
+const framework = @import("framework");
 const server = @import("../server/root.zig");
 const auth_types = @import("../auth/types.zig");
 
@@ -10,9 +11,14 @@ pub const ManagementHandler = struct {
     auth_store: ?auth_types.Store = null,
     config_path: []const u8 = "",
     log_directory: []const u8 = "",
+    logger: ?*framework.Logger = null,
 
     pub fn init(allocator: std.mem.Allocator) ManagementHandler {
         return .{ .allocator = allocator };
+    }
+
+    pub fn setLogger(self: *ManagementHandler, logger: *framework.Logger) void {
+        self.logger = logger;
     }
 
     pub fn setSecretKey(self: *ManagementHandler, key: []const u8) void {
@@ -37,7 +43,9 @@ pub const ManagementHandler = struct {
     }
 
     pub fn registerRoutes(self: *ManagementHandler, router: *server.Router) !void {
-        _ = self;
+        if (self.logger) |l| {
+            l.child("management").info("registering management routes", &.{});
+        }
         router.get("/v0/management/health", handleHealth);
         router.get("/v0/management/auth/list", handleAuthList);
         router.get("/v0/management/config", handleConfig);

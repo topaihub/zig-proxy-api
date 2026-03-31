@@ -153,6 +153,7 @@ pub fn main() !void {
     var auth_mgr = auth.Manager.init(allocator);
     defer auth_mgr.deinit();
     auth_mgr.setStore(file_store.store());
+    auth_mgr.setLogger(app_ctx.logger);
 
     // 4b. Init token refresher
     var refresher = auth_mod.TokenRefresher.init(allocator);
@@ -163,12 +164,16 @@ pub fn main() !void {
     // 5. Init scheduler Selector
     const strategy: scheduler.Strategy = if (std.mem.eql(u8, cfg.routing.strategy, "fill-first")) .fill_first else .round_robin;
     var sel = scheduler.Selector.init(strategy);
+    sel.setLogger(app_ctx.logger);
     _ = &sel;
 
     // 6. Init translator Registry
     var trans_reg = translator.Registry.init(allocator);
     defer trans_reg.deinit();
     translator.registerAll(&trans_reg);
+    app_ctx.logger.child("translator").info("translators registered", &.{
+        framework.LogField.uint("count", trans_reg.count()),
+    });
 
     // 7. Init executor ExecutorRegistry
     var exec_reg = executor.ExecutorRegistry.init(allocator);
@@ -176,6 +181,7 @@ pub fn main() !void {
 
     // 7b. Init API handlers
     global_api_handlers = api.ApiHandlers.init(allocator, &trans_reg, &exec_reg);
+    global_api_handlers.?.setLogger(app_ctx.logger);
 
     // 7c. Config hot-reload
     var hot_reloader: ?config_mod.HotReloader = null;
@@ -194,6 +200,7 @@ pub fn main() !void {
     // 8. Init ManagementHandler, register routes if secret key configured
     var mgmt = management.ManagementHandler.init(allocator);
     defer mgmt.deinit();
+    mgmt.setLogger(app_ctx.logger);
 
     // 9. Set up HttpServer
     var srv = server.HttpServer.init(allocator, .{

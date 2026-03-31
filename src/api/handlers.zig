@@ -1,4 +1,5 @@
 const std = @import("std");
+const framework = @import("framework");
 const server = @import("../server/root.zig");
 const translator = @import("../translator/root.zig");
 const executor = @import("../executor/root.zig");
@@ -7,6 +8,7 @@ pub const ApiHandlers = struct {
     allocator: std.mem.Allocator,
     translator_registry: *translator.Registry,
     executor_registry: *executor.ExecutorRegistry,
+    logger: ?*framework.Logger = null,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -18,6 +20,10 @@ pub const ApiHandlers = struct {
             .translator_registry = tr,
             .executor_registry = er,
         };
+    }
+
+    pub fn setLogger(self: *ApiHandlers, logger: *framework.Logger) void {
+        self.logger = logger;
     }
 
     /// POST /v1/chat/completions — OpenAI-compatible endpoint
@@ -104,7 +110,15 @@ pub const ApiHandlers = struct {
         source_format: translator.Format,
         default_provider: []const u8,
     ) !void {
+        // Method trace
+        var method_trace: ?framework.MethodTrace = null;
+        if (self.logger) |l| {
+            method_trace = framework.MethodTrace.begin(self.allocator, l, "ApiHandler.handleRequest", default_provider, 5000) catch null;
+        }
+        defer if (method_trace) |*t| t.deinit();
+
         const body = ctx.readBody() orelse {
+            if (method_trace) |*t| t.finishError("BadRequest", null, false);
             try ctx.text(.bad_request, "missing request body");
             return;
         };
@@ -119,6 +133,7 @@ pub const ApiHandlers = struct {
             } else {
                 try ctx.raw(.ok, body);
             }
+            if (method_trace) |*t| t.finishSuccess("passthrough", false);
             return;
         };
 
@@ -131,20 +146,34 @@ pub const ApiHandlers = struct {
             false,
         );
 
-        const resp = try exec.execute(self.allocator, .{
+        // Step trace around executor call
+        var step: ?framework.StepTrace = null;
+        if (self.logger) |l| {
+            step = framework.StepTrace.begin(self.allocator, l, "executor", provider, 5000) catch null;
+        }
+        defer if (step) |*s| s.deinit();
+
+        const resp = exec.execute(self.allocator, .{
             .model = model,
             .payload = translated,
             .format = target_format,
         }, .{
             .source_format = source_format,
             .original_request = body,
-        });
+        }) catch |err| {
+            if (step) |*s| s.finish("EXECUTOR_ERROR");
+            if (method_trace) |*t| t.finishError("ExecutorError", @errorName(err), false);
+            return err;
+        };
+
+        if (step) |*s| s.finish(null);
 
         if (stream) {
             try writeAsSSE(ctx, resp.payload);
         } else {
             try ctx.raw(@enumFromInt(resp.status_code), resp.payload);
         }
+        if (method_trace) |*t| t.finishSuccess("ok", false);
     }
 
     fn formatFromProvider(provider: []const u8) translator.Format {

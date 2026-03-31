@@ -37,6 +37,16 @@ pub const Registry = struct {
     pub fn deinit(self: *Registry) void {
         _ = self;
     }
+
+    pub fn count(self: *const Registry) usize {
+        var c: usize = 0;
+        for (self.requests) |row| {
+            for (row) |cell| {
+                if (cell != null) c += 1;
+            }
+        }
+        return c;
+    }
 };
 
 test "registry stores and retrieves transforms" {

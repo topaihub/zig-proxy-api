@@ -39,7 +39,10 @@ pub const HotReloader = struct {
 
         // Reload config
         var loaded = loader_mod.loadFromFile(self.config_path, self.allocator) catch |err| {
-            if (self.logger) |l| l.subsystem("config").warn("hot-reload failed", &.{});
+            if (self.logger) |l| l.subsystem("config").warn("hot-reload failed", &.{
+                framework.LogField.string("path", self.config_path),
+                framework.LogField.string("error", @errorName(err)),
+            });
             return err;
         };
         defer loaded.deinit();
@@ -56,7 +59,9 @@ pub const HotReloader = struct {
             _ = bus.publish("config.reloaded", "{\"source\":\"file_watcher\"}") catch {};
         }
 
-        if (self.logger) |l| l.subsystem("config").info("configuration reloaded", &.{});
+        if (self.logger) |l| l.subsystem("config").info("configuration reloaded", &.{
+            framework.LogField.string("path", self.config_path),
+        });
         return true;
     }
 

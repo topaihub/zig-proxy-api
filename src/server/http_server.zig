@@ -73,7 +73,24 @@ pub const HttpServer = struct {
         var req = http_server.receiveHead() catch return;
 
         const target = req.head.target;
-        const path = if (std.mem.indexOfScalar(u8, target, '?')) |qi| target[0..qi] else target;
+        const qi = std.mem.indexOfScalar(u8, target, '?');
+        const path = if (qi) |q| target[0..q] else target;
+        const query_string: ?[]const u8 = if (qi) |q| target[q + 1 ..] else null;
+
+        // Begin request trace
+        var trace: ?framework.RequestTrace = null;
+        if (self.app_context) |app_ctx| {
+            trace = framework.observability.request_trace.begin(
+                self.allocator,
+                app_ctx.logger,
+                .http,
+                "req",
+                @tagName(req.head.method),
+                path,
+                query_string,
+            ) catch null;
+        }
+        defer if (trace) |*t| t.deinit();
 
         if (self.router.resolve(req.head.method, path)) |match| {
             var ctx = Context.initTest(req.head.method, path, self.allocator);
@@ -84,6 +101,18 @@ pub const HttpServer = struct {
             const mws = self.global_middlewares[0..self.global_mw_count];
             const handler = if (mws.len > 0) middleware_mod.buildChain(mws, final) else final;
             handler(&ctx) catch {};
+
+            // Complete request trace
+            if (trace) |*t| {
+                if (self.app_context) |app_ctx| {
+                    framework.observability.request_trace.complete(
+                        app_ctx.logger,
+                        t,
+                        @intFromEnum(ctx.response_status),
+                        null,
+                    );
+                }
+            }
 
             const body = ctx.response_buf.items;
             var headers: [16]std.http.Header = undefined;
@@ -96,6 +125,12 @@ pub const HttpServer = struct {
                 .keep_alive = false,
             });
         } else {
+            // Complete request trace for 404
+            if (trace) |*t| {
+                if (self.app_context) |app_ctx| {
+                    framework.observability.request_trace.complete(app_ctx.logger, t, 404, null);
+                }
+            }
             try req.respond("{\"error\":\"Not Found\"}", .{
                 .status = .not_found,
                 .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }},

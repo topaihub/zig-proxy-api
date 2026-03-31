@@ -1,4 +1,5 @@
 const std = @import("std");
+const framework = @import("framework");
 const types = @import("types.zig");
 const Strategy = types.Strategy;
 const Credential = types.Credential;
@@ -7,9 +8,14 @@ pub const Selector = struct {
     strategy: Strategy = .round_robin,
     credentials: []Credential = &.{},
     rr_index: usize = 0,
+    logger: ?*framework.Logger = null,
 
     pub fn init(strategy: Strategy) Selector {
         return .{ .strategy = strategy };
+    }
+
+    pub fn setLogger(self: *Selector, logger: *framework.Logger) void {
+        self.logger = logger;
     }
 
     pub fn setCredentials(self: *Selector, creds: []Credential) void {
@@ -17,10 +23,24 @@ pub const Selector = struct {
     }
 
     pub fn select(self: *Selector, provider: []const u8) ?*Credential {
-        return switch (self.strategy) {
+        const result = switch (self.strategy) {
             .round_robin => self.selectRoundRobin(provider),
             .fill_first => self.selectFillFirst(provider),
         };
+        if (self.logger) |l| {
+            if (result) |cred| {
+                l.child("scheduler").debug("credential selected", &.{
+                    framework.LogField.string("provider", provider),
+                    framework.LogField.string("credential", cred.id),
+                    framework.LogField.string("strategy", self.strategy.name()),
+                });
+            } else {
+                l.child("scheduler").warn("no credential available", &.{
+                    framework.LogField.string("provider", provider),
+                });
+            }
+        }
+        return result;
     }
 
     fn selectRoundRobin(self: *Selector, provider: []const u8) ?*Credential {
