@@ -46,9 +46,56 @@ pub const ApiHandlers = struct {
         try self.handleRequest(ctx, .claude, "claude");
     }
 
-    /// POST /v1/gemini/generateContent — Gemini-compatible endpoint
+    /// POST /v1/completions — OpenAI completions endpoint
+    pub fn completions(self: *ApiHandlers, ctx: *server.Context) !void {
+        try self.handleRequest(ctx, .openai, "openai");
+    }
+
+    /// POST /v1/messages/count_tokens — Token counting stub
+    pub fn countTokens(_: *ApiHandlers, ctx: *server.Context) !void {
+        try ctx.json(.ok, .{ .input_tokens = 0 });
+    }
+
+    /// POST /v1/responses — Codex Responses API
+    pub fn responses(self: *ApiHandlers, ctx: *server.Context) !void {
+        try self.handleRequest(ctx, .codex, "openai");
+    }
+
+    /// POST /v1/responses/compact — Codex Responses API (compact)
+    pub fn responsesCompact(self: *ApiHandlers, ctx: *server.Context) !void {
+        try self.handleRequest(ctx, .codex, "openai");
+    }
+
+    /// GET /v1/responses — WebSocket upgrade stub
+    pub fn responsesWebsocket(_: *ApiHandlers, ctx: *server.Context) !void {
+        try ctx.json(.ok, .{ .@"type" = "websocket", .status = "not_implemented" });
+    }
+
+    /// GET /v1beta/models — Gemini model list
+    pub fn geminiModels(_: *ApiHandlers, ctx: *server.Context) !void {
+        try ctx.json(.ok, .{ .models = &[_]struct { name: []const u8, displayName: []const u8 }{
+            .{ .name = "models/gemini-2.5-pro", .displayName = "Gemini 2.5 Pro" },
+            .{ .name = "models/gemini-2.5-flash", .displayName = "Gemini 2.5 Flash" },
+        } });
+    }
+
+    /// POST /v1beta/models/*action — Gemini generate
     pub fn geminiGenerate(self: *ApiHandlers, ctx: *server.Context) !void {
         try self.handleRequest(ctx, .gemini, "gemini");
+    }
+
+    /// GET /v1beta/models/*action — Gemini get model info
+    pub fn geminiGetModel(_: *ApiHandlers, ctx: *server.Context) !void {
+        const action = ctx.param("action") orelse "";
+        // Extract model name before colon (e.g. "gemini-2.5-pro:generateContent" -> "gemini-2.5-pro")
+        const colon = std.mem.indexOfScalar(u8, action, ':');
+        const model_name = if (colon) |c| action[0..c] else action;
+        try ctx.json(.ok, .{ .name = model_name, .displayName = model_name, .supportedGenerationMethods = &[_][]const u8{ "generateContent", "streamGenerateContent" } });
+    }
+
+    /// POST /v1internal:method — Gemini CLI internal endpoint
+    pub fn geminiCliHandler(self: *ApiHandlers, ctx: *server.Context) !void {
+        try self.handleRequest(ctx, .gemini_cli, "gemini");
     }
 
     fn handleRequest(

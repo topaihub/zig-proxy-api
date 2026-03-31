@@ -21,6 +21,9 @@ pub const AmpRouter = struct {
         _ = self;
         router.get("/api/provider/:provider/v1/models", handleModels);
         router.post("/api/provider/:provider/v1/chat/completions", handleChat);
+        router.post("/api/provider/:provider/v1/messages", handleMessages);
+        router.post("/api/provider/:provider/v1beta/models/*action", handleGeminiGenerate);
+        router.get("/api/provider/:provider/v1beta/models/*action", handleGeminiGetModel);
     }
 
     pub fn deinit(self: *AmpRouter) void {
@@ -33,6 +36,21 @@ pub const AmpRouter = struct {
 
     fn handleChat(ctx: *server.Context) anyerror!void {
         try ctx.json(.ok, .{ .object = "chat.completion" });
+    }
+
+    fn handleMessages(ctx: *server.Context) anyerror!void {
+        try ctx.json(.ok, .{ .@"type" = "message" });
+    }
+
+    fn handleGeminiGenerate(ctx: *server.Context) anyerror!void {
+        try ctx.json(.ok, .{ .candidates = &[_]u8{} });
+    }
+
+    fn handleGeminiGetModel(ctx: *server.Context) anyerror!void {
+        const action = ctx.param("action") orelse "unknown";
+        const colon = std.mem.indexOfScalar(u8, action, ':');
+        const model_name = if (colon) |c| action[0..c] else action;
+        try ctx.json(.ok, .{ .name = model_name });
     }
 };
 

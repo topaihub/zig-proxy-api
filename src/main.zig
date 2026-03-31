@@ -36,6 +36,64 @@ fn messagesHandler(ctx: *server.Context) anyerror!void {
     try ctx.json(.ok, .{ .type = "message", .model = "stub" });
 }
 
+fn completionsHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.completions(ctx);
+    try ctx.json(.ok, .{ .object = "text_completion", .model = "stub" });
+}
+
+fn countTokensHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.countTokens(ctx);
+    try ctx.json(.ok, .{ .input_tokens = 0 });
+}
+
+fn responsesHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.responses(ctx);
+    try ctx.json(.ok, .{ .@"type" = "response", .model = "stub" });
+}
+
+fn responsesCompactHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.responsesCompact(ctx);
+    try ctx.json(.ok, .{ .@"type" = "response", .model = "stub" });
+}
+
+fn responsesWsHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.responsesWebsocket(ctx);
+    try ctx.json(.ok, .{ .@"type" = "websocket", .status = "not_implemented" });
+}
+
+fn geminiModelsHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.geminiModels(ctx);
+    try ctx.json(.ok, .{ .models = &[_]u8{} });
+}
+
+fn geminiGenerateHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.geminiGenerate(ctx);
+    try ctx.json(.ok, .{ .candidates = &[_]u8{} });
+}
+
+fn geminiGetModelHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.geminiGetModel(ctx);
+    try ctx.json(.ok, .{ .name = "stub" });
+}
+
+fn geminiCliHandler(ctx: *server.Context) anyerror!void {
+    if (global_api_handlers) |*h| return h.geminiCliHandler(ctx);
+    try ctx.json(.ok, .{ .@"type" = "gemini-cli" });
+}
+
+fn managementPanelHandler(ctx: *server.Context) anyerror!void {
+    ctx.setHeader("Content-Type", "text/html");
+    try ctx.raw(.ok,
+        \\<!DOCTYPE html><html><head><title>Management Panel</title></head><body>
+        \\<h1>Management Panel</h1>
+        \\<ul>
+        \\<li><a href="/v1/models">Models</a></li>
+        \\<li><a href="/v1beta/models">Gemini Models</a></li>
+        \\</ul>
+        \\</body></html>
+    );
+}
+
 var global_api_handlers: ?api.ApiHandlers = null;
 
 const CliArgs = struct {
@@ -136,6 +194,24 @@ pub fn main() !void {
     srv.router.get("/v1/models", modelsHandler);
     srv.router.post("/v1/chat/completions", chatCompletionsHandler);
     srv.router.post("/v1/messages", messagesHandler);
+
+    // OpenAI compatible
+    srv.router.post("/v1/completions", completionsHandler);
+    srv.router.post("/v1/messages/count_tokens", countTokensHandler);
+    srv.router.get("/v1/responses", responsesWsHandler);
+    srv.router.post("/v1/responses", responsesHandler);
+    srv.router.post("/v1/responses/compact", responsesCompactHandler);
+
+    // Gemini compatible
+    srv.router.get("/v1beta/models", geminiModelsHandler);
+    srv.router.post("/v1beta/models/*action", geminiGenerateHandler);
+    srv.router.get("/v1beta/models/*action", geminiGetModelHandler);
+
+    // Gemini CLI internal
+    srv.router.post("/v1internal:method", geminiCliHandler);
+
+    // Management panel
+    srv.router.get("/management.html", managementPanelHandler);
 
     // 12. Signal handling
     // NOTE: Skipped — std.posix.sigaction setup is complex on Zig 0.15.x;
