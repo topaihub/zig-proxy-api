@@ -6,6 +6,7 @@ pub const config = @import("config/root.zig");
 pub const auth = @import("auth/root.zig");
 pub const translator = @import("translator/root.zig");
 pub const executor = @import("executor/root.zig");
+pub const scheduler = @import("scheduler/root.zig");
 
 fn rootHandler(ctx: *server.Context) anyerror!void {
     try ctx.json(.ok, .{ .message = "CLI Proxy API Server (Zig)", .version = "0.1.0" });
