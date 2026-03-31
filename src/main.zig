@@ -20,12 +20,21 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    var loaded = config.loadFromFile("config.json", allocator) catch |err| switch (err) {
+        error.FileNotFound => null,
+        else => return err,
+    };
+    defer if (loaded) |*l| l.deinit();
+    const cfg = if (loaded) |l| l.config else config.Config{};
+
+    const host = if (cfg.host.len > 0) cfg.host else "127.0.0.1";
+
     var app_ctx = try framework.AppContext.init(allocator, .{});
     defer app_ctx.deinit();
 
     var srv = server.HttpServer.init(allocator, .{
-        .host = "127.0.0.1",
-        .port = 8317,
+        .host = host,
+        .port = cfg.port,
         .app_context = &app_ctx,
     });
     defer srv.deinit();
@@ -37,7 +46,7 @@ pub fn main() !void {
     srv.router.get("/v1/models", modelsHandler);
 
     var log = app_ctx.logger.subsystem("server");
-    log.info("listening on 127.0.0.1:8317", &.{});
+    log.info("server starting", &.{ framework.LogField.string("host", host), framework.LogField.int("port", @intCast(cfg.port)) });
 
     try srv.listenAndServe();
 }

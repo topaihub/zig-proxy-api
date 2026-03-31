@@ -1,0 +1,23 @@
+{
+    "host": "",
+    "port": 8317,
+    "debug": false,
+    "auth_dir": "~/.cli-proxy-api",
+    "api_keys": ["your-api-key-1"],
+    "proxy_url": "",
+    "request_retry": 3,
+    "max_retry_interval": 30,
+    "routing": {
+        "strategy": "round-robin"
+    },
+    "tls": {
+        "enable": false,
+        "cert": "",
+        "key": ""
+    },
+    "gemini_api_key": [],
+    "claude_api_key": [],
+    "codex_api_key": [],
+    "openai_compatibility": [],
+    "vertex_api_key": []
+}
