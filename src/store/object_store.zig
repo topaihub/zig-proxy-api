@@ -92,7 +92,7 @@ test "object store has correct name" {
 }
 
 test "object store put and get" {
-    const dir = "/tmp/_zig_proxy_obj_store_test";
+    const dir = "_zig_proxy_obj_store_test";
     std.fs.cwd().deleteTree(dir) catch {};
     defer std.fs.cwd().deleteTree(dir) catch {};
     var os = ObjectStore.init(std.testing.allocator, dir, "testbucket");

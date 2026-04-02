@@ -28,7 +28,7 @@ pub const ConfigWatcher = struct {
 };
 
 test "watcher detects file modification" {
-    const path = "/tmp/_zig_proxy_watcher_test.json";
+    const path = "_zig_proxy_watcher_test.json";
     {
         var f = try std.fs.cwd().createFile(path, .{});
         try f.writeAll("{}");

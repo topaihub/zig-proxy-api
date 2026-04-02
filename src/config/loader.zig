@@ -34,12 +34,12 @@ test "load config from json string" {
 
 test "load config from file" {
     const content = "{\"port\": 7777}";
-    var tmp = try std.fs.cwd().createFile("/tmp/_zig_proxy_test_cfg.json", .{});
+    var tmp = try std.fs.cwd().createFile("_zig_proxy_test_cfg.json", .{});
     try tmp.writeAll(content);
     tmp.close();
-    defer std.fs.cwd().deleteFile("/tmp/_zig_proxy_test_cfg.json") catch {};
+    defer std.fs.cwd().deleteFile("_zig_proxy_test_cfg.json") catch {};
 
-    var cfg = try loadFromFile("/tmp/_zig_proxy_test_cfg.json", std.testing.allocator);
+    var cfg = try loadFromFile("_zig_proxy_test_cfg.json", std.testing.allocator);
     defer cfg.deinit();
     try std.testing.expectEqual(@as(u16, 7777), cfg.config.port);
 }

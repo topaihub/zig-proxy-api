@@ -146,7 +146,7 @@ test "postgres store has correct name" {
 }
 
 test "postgres store put and get" {
-    const dir = "/tmp/_zig_proxy_pg_store_test";
+    const dir = "_zig_proxy_pg_store_test";
     std.fs.cwd().deleteTree(dir) catch {};
     defer std.fs.cwd().deleteTree(dir) catch {};
     var ps = PostgresStore.init(std.testing.allocator, dir);

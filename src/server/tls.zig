@@ -34,7 +34,7 @@ test "tls config not configured by default" {
 }
 
 test "tls config configured when all set" {
-    const cfg = TlsConfig{ .cert_path = "/tmp/cert.pem", .key_path = "/tmp/key.pem", .enabled = true };
+    const cfg = TlsConfig{ .cert_path = "_test_cert.pem", .key_path = "_test_key.pem", .enabled = true };
     try std.testing.expect(cfg.isConfigured());
 }
 

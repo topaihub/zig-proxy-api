@@ -84,7 +84,7 @@ pub const HotReloader = struct {
 };
 
 test "hot reloader detects config change" {
-    const path = "/tmp/_zig_proxy_hotreload_test.json";
+    const path = "_zig_proxy_hotreload_test.json";
     {
         var f = try std.fs.cwd().createFile(path, .{});
         try f.writeAll("{\"port\": 8317}");

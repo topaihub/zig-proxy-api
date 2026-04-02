@@ -126,7 +126,7 @@ fn freeAuthSlice(allocator: std.mem.Allocator, auths: []Auth) void {
 }
 
 test "file store save and list" {
-    const dir = "/tmp/_zig_proxy_auth_test";
+    const dir = "_zig_proxy_auth_test";
     std.fs.cwd().deleteTree(dir) catch {};
     defer std.fs.cwd().deleteTree(dir) catch {};
 
@@ -145,7 +145,7 @@ test "file store save and list" {
 }
 
 test "file store delete" {
-    const dir = "/tmp/_zig_proxy_auth_test_del";
+    const dir = "_zig_proxy_auth_test_del";
     std.fs.cwd().deleteTree(dir) catch {};
     defer std.fs.cwd().deleteTree(dir) catch {};
 

@@ -48,7 +48,7 @@ pub const RequestLogger = struct {
 };
 
 test "request logger init and toggle" {
-    var logger = RequestLogger.init(std.testing.allocator, "/tmp/logs");
+    var logger = RequestLogger.init(std.testing.allocator, "_test_logs");
     defer logger.deinit();
     try std.testing.expect(logger.isEnabled());
     logger.setEnabled(false);
@@ -56,7 +56,7 @@ test "request logger init and toggle" {
 }
 
 test "request logger formats entry" {
-    var logger = RequestLogger.init(std.testing.allocator, "/tmp/logs");
+    var logger = RequestLogger.init(std.testing.allocator, "_test_logs");
     defer logger.deinit();
     try logger.log(.{ .method = "GET", .path = "/v1/models", .status = 200 });
 }

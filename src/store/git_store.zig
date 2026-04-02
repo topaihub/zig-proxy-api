@@ -101,14 +101,14 @@ pub const GitStore = struct {
 };
 
 test "git store has correct name" {
-    var gs = GitStore.init(std.testing.allocator, "/tmp/repo");
+    var gs = GitStore.init(std.testing.allocator, "_test_repo");
     defer gs.deinit();
     const b = gs.backend();
     try std.testing.expectEqualStrings("git", b.backendName());
 }
 
 test "git store put and get" {
-    const dir = "/tmp/_zig_proxy_git_store_test";
+    const dir = "_zig_proxy_git_store_test";
     std.fs.cwd().deleteTree(dir) catch {};
     defer std.fs.cwd().deleteTree(dir) catch {};
     var gs = GitStore.init(std.testing.allocator, dir);
