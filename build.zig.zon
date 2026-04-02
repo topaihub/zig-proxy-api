@@ -6,7 +6,7 @@
     .dependencies = .{
         .framework = .{
             .url = "https://github.com/topaihub/zig-framework/archive/refs/heads/codex/framework-tooling-runtime-vnext.tar.gz",
-            .hash = "framework-0.1.0-cN4T2mwCCQDYcHq1krS3CoNW4WVjtuUDzQXm6VaRBoU1",
+            .hash = "framework-0.1.0-cN4T2o4CCQDN4p5zkHGtd91HKjvs8PrFiKuTLPsZ1wbA",
         },
     },
     .paths = .{

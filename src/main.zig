@@ -137,14 +137,20 @@ pub fn main() !void {
     const host = if (cfg.host.len > 0) cfg.host else "127.0.0.1";
 
     // 3. Init framework AppContext
-    var app_ctx = try framework.AppContext.init(allocator, .{});
+    var app_ctx = try framework.AppContext.init(allocator, .{
+        .console_log_style = .pretty,
+    });
     defer app_ctx.deinit();
 
-    // 3b. Add rotating file sink for daily JSONL log files
-    var rotating_sink = logging.RotatingFileSink.init(allocator, "logs", "proxy");
+    // 3b. Add rotating file sink for daily log files (text format)
+    var rotating_sink = framework.RotatingFileSink.init(allocator, .{
+        .log_dir = "logs",
+        .prefix = "proxy",
+        .format = .text,
+    });
     defer rotating_sink.deinit();
     const original_sink = app_ctx.logger.sink;
-    var file_multi = try framework.MultiSink.init(allocator, &.{ original_sink, rotating_sink.asLogSink() });
+    var file_multi = try framework.MultiSink.init(allocator, &.{ original_sink, rotating_sink.sink() });
     defer file_multi.deinit();
     app_ctx.logger.sink = file_multi.asLogSink();
 
