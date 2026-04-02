@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>zig-proxy-api Management</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.header{background:#1e293b;padding:16px 24px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #334155}
+.header h1{font-size:20px;font-weight:600;color:#38bdf8}
+.header .badge{background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px}
+.tabs{display:flex;background:#1e293b;border-bottom:1px solid #334155;padding:0 24px}
+.tab{padding:12px 20px;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;transition:.2s}
+.tab:hover{color:#e2e8f0}
+.tab.active{color:#38bdf8;border-bottom-color:#38bdf8}
+.content{padding:24px;max-width:1200px;margin:0 auto}
+.card{background:#1e293b;border-radius:8px;padding:20px;margin-bottom:16px;border:1px solid #334155}
+.card h3{color:#38bdf8;margin-bottom:12px;font-size:16px}
+.stat{display:inline-block;margin-right:32px;margin-bottom:8px}
+.stat .label{color:#94a3b8;font-size:12px;text-transform:uppercase}
+.stat .value{font-size:24px;font-weight:700;color:#f1f5f9}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #334155}
+th{color:#94a3b8;font-size:12px;text-transform:uppercase}
+td{color:#e2e8f0;font-size:14px}
+.status-ok{color:#34d399}
+.status-err{color:#f87171}
+.btn{background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px}
+.btn:hover{background:#1d4ed8}
+.btn-danger{background:#dc2626}
+.btn-danger:hover{background:#b91c1c}
+input,textarea{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px 12px;border-radius:6px;width:100%;font-size:14px;margin-bottom:8px}
+textarea{min-height:120px;font-family:monospace}
+.hidden{display:none}
+#loading{text-align:center;padding:40px;color:#94a3b8}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>⚡ zig-proxy-api</h1>
+  <span class="badge" id="status-badge">checking...</span>
+</div>
+<div class="tabs">
+  <div class="tab active" data-tab="dashboard">Dashboard</div>
+  <div class="tab" data-tab="auth">Auth</div>
+  <div class="tab" data-tab="config">Config</div>
+  <div class="tab" data-tab="logs">Logs</div>
+  <div class="tab" data-tab="usage">Usage</div>
+</div>
+<div class="content">
+  <!-- Dashboard -->
+  <div id="tab-dashboard">
+    <div class="card">
+      <h3>Server Status</h3>
+      <div class="grid">
+        <div class="stat"><div class="label">Status</div><div class="value status-ok" id="srv-status">—</div></div>
+        <div class="stat"><div class="label">Uptime</div><div class="value" id="srv-uptime">—</div></div>
+        <div class="stat"><div class="label">Requests</div><div class="value" id="srv-requests">0</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Endpoints</h3>
+      <table>
+        <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        <tr><td>POST</td><td>/v1/chat/completions</td><td>OpenAI Chat Completions</td></tr>
+        <tr><td>POST</td><td>/v1/messages</td><td>Claude Messages</td></tr>
+        <tr><td>POST</td><td>/v1beta/models/*:generateContent</td><td>Gemini Generate</td></tr>
+        <tr><td>POST</td><td>/v1/responses</td><td>Codex Responses</td></tr>
+        <tr><td>GET</td><td>/v1/models</td><td>List Models</td></tr>
+      </table>
+    </div>
+  </div>
+  <!-- Auth -->
+  <div id="tab-auth" class="hidden">
+    <div class="card">
+      <h3>Authentication Records</h3>
+      <div id="auth-list"><p style="color:#94a3b8">Loading...</p></div>
+    </div>
+  </div>
+  <!-- Config -->
+  <div id="tab-config" class="hidden">
+    <div class="card">
+      <h3>Configuration</h3>
+      <textarea id="config-editor" placeholder="Loading configuration..."></textarea>
+      <button class="btn" onclick="saveConfig()">Save Configuration</button>
+    </div>
+  </div>
+  <!-- Logs -->
+  <div id="tab-logs" class="hidden">
+    <div class="card">
+      <h3>Recent Logs</h3>
+      <div id="log-list" style="font-family:monospace;font-size:13px;max-height:500px;overflow-y:auto"><p style="color:#94a3b8">Loading...</p></div>
+    </div>
+  </div>
+  <!-- Usage -->
+  <div id="tab-usage" class="hidden">
+    <div class="card">
+      <h3>Usage Statistics</h3>
+      <div class="grid">
+        <div class="stat"><div class="label">Total Requests</div><div class="value" id="usage-requests">0</div></div>
+        <div class="stat"><div class="label">Total Tokens</div><div class="value" id="usage-tokens">0</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const BASE = window.location.origin + '/v0/management';
+const KEY = localStorage.getItem('mgmt_key') || '';
+
+async function api(path) {
+  try {
+    const h = {'Content-Type':'application/json'};
+    if (KEY) h['X-Management-Key'] = KEY;
+    const r = await fetch(BASE + path, {headers: h});
+    return await r.json();
+  } catch(e) { return {error: e.message}; }
+}
+
+async function loadDashboard() {
+  const d = await api('/health');
+  document.getElementById('status-badge').textContent = d.status || 'online';
+  document.getElementById('status-badge').style.background = '#059669';
+  document.getElementById('srv-status').textContent = d.status || 'OK';
+}
+
+async function loadAuth() {
+  const d = await api('/auth/list');
+  const el = document.getElementById('auth-list');
+  if (d.entries && d.entries.length > 0) {
+    el.innerHTML = '<table><tr><th>ID</th><th>Provider</th><th>Status</th></tr>' +
+      d.entries.map(e => `<tr><td>${e.id||'—'}</td><td>${e.provider||'—'}</td><td>${e.disabled?'<span class="status-err">disabled</span>':'<span class="status-ok">active</span>'}</td></tr>`).join('') + '</table>';
+  } else {
+    el.innerHTML = '<p style="color:#94a3b8">No auth records. Configure providers in config.json.</p>';
+  }
+}
+
+async function loadConfig() {
+  const d = await api('/config');
+  document.getElementById('config-editor').value = JSON.stringify(d, null, 2);
+}
+
+async function saveConfig() {
+  const body = document.getElementById('config-editor').value;
+  try {
+    JSON.parse(body);
+    await fetch(BASE + '/config/update', {method:'POST', headers:{'Content-Type':'application/json'}, body});
+    alert('Configuration saved');
+  } catch(e) { alert('Invalid JSON: ' + e.message); }
+}
+
+async function loadLogs() {
+  const d = await api('/logs/recent');
+  const el = document.getElementById('log-list');
+  if (d.entries && d.entries.length > 0) {
+    el.innerHTML = d.entries.map(e => `<div style="padding:4px 0;border-bottom:1px solid #1e293b">${e}</div>`).join('');
+  } else {
+    el.innerHTML = '<p style="color:#94a3b8">No recent log entries.</p>';
+  }
+}
+
+async function loadUsage() {
+  const d = await api('/usage');
+  document.getElementById('usage-requests').textContent = d.requests || 0;
+  document.getElementById('usage-tokens').textContent = d.tokens || 0;
+}
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.dataset.tab;
+    document.querySelectorAll('.content > div').forEach(d => d.classList.add('hidden'));
+    document.getElementById('tab-' + name).classList.remove('hidden');
+    if (name === 'auth') loadAuth();
+    if (name === 'config') loadConfig();
+    if (name === 'logs') loadLogs();
+    if (name === 'usage') loadUsage();
+  });
+});
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>

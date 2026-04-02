@@ -90,16 +90,9 @@ fn geminiCliHandler(ctx: *server.Context) anyerror!void {
 }
 
 fn managementPanelHandler(ctx: *server.Context) anyerror!void {
-    ctx.setHeader("Content-Type", "text/html");
-    try ctx.raw(.ok,
-        \\<!DOCTYPE html><html><head><title>Management Panel</title></head><body>
-        \\<h1>Management Panel</h1>
-        \\<ul>
-        \\<li><a href="/v1/models">Models</a></li>
-        \\<li><a href="/v1beta/models">Gemini Models</a></li>
-        \\</ul>
-        \\</body></html>
-    );
+    const panel_html = @embedFile("management.html");
+    ctx.setHeader("Content-Type", "text/html; charset=utf-8");
+    try ctx.raw(.ok, panel_html);
 }
 
 var global_api_handlers: ?api.ApiHandlers = null;
