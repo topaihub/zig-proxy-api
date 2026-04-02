@@ -18,6 +18,7 @@ Before writing any code, read the relevant rule documents:
 - vtable interfaces for polymorphism
 - Every module has `root.zig` with `refAllDecls` test
 - Run `scripts/check-logging.sh` before committing
+- **Tests: NEVER hardcode `/tmp/` paths.** Use `:memory:` for SQLite, relative paths, or `std.testing.tmpDir()`. Must work on Linux, macOS, and Windows.
 
 ## Project Structure
 
