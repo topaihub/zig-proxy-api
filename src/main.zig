@@ -124,10 +124,19 @@ pub fn main() !void {
 
     // 1. Parse CLI args
     const cli = parseArgs(allocator);
+    const default_config = @embedFile("default_config.json");
 
-    // 2. Load config
+    // 2. Load config (auto-generate default if missing)
     var loaded = config.loadFromFile(cli.config_path, allocator) catch |err| switch (err) {
-        error.FileNotFound => null,
+        error.FileNotFound => blk: {
+            // Generate default config.json
+            var f = std.fs.cwd().createFile(cli.config_path, .{}) catch break :blk null;
+            defer f.close();
+            f.writeAll(default_config) catch {};
+            std.debug.print("Generated default {s}\n", .{cli.config_path});
+            // Load the newly created file
+            break :blk config.loadFromFile(cli.config_path, allocator) catch null;
+        },
         else => return err,
     };
     defer if (loaded) |*l| l.deinit();
