@@ -111,9 +111,9 @@ const CliArgs = struct {
 
 fn parseArgs(allocator: std.mem.Allocator) CliArgs {
     var result = CliArgs{};
-    var args = std.process.args();
+    var args = std.process.argsWithAllocator(allocator) catch return result;
+    defer args.deinit();
     _ = args.skip(); // skip executable name
-    _ = allocator;
     while (args.next()) |arg| {
         if (std.mem.startsWith(u8, arg, "--config=")) {
             result.config_path = arg["--config=".len..];
