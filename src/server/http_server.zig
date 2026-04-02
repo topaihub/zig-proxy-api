@@ -50,17 +50,29 @@ pub const HttpServer = struct {
     }
 
     pub fn listenAndServe(self: *HttpServer) !void {
-        const addr = try std.net.Address.parseIp(self.config.host, self.config.port);
-        var listener = try addr.listen(.{ .reuse_address = true });
+        const host = if (self.config.host.len == 0) "127.0.0.1" else self.config.host;
+        const addr = std.net.Address.parseIp(host, self.config.port) catch |err| {
+            std.debug.print("Failed to parse address {s}:{d}: {s}\n", .{ host, self.config.port, @errorName(err) });
+            return err;
+        };
+        var listener = addr.listen(.{ .reuse_address = true }) catch |err| {
+            std.debug.print("Failed to listen on {s}:{d}: {s}\n", .{ host, self.config.port, @errorName(err) });
+            return err;
+        };
         defer listener.deinit();
+
+        std.debug.print("Listening on {s}:{d}\n", .{ host, self.config.port });
 
         while (!self.shutdown_requested.load(.acquire)) {
             const conn = listener.accept() catch |err| switch (err) {
                 error.ConnectionAborted => continue,
-                else => return err,
+                else => {
+                    std.debug.print("Accept error: {s}\n", .{@errorName(err)});
+                    continue;
+                },
             };
-            defer conn.stream.close();
-            self.handleConnection(conn.stream) catch continue;
+            self.handleConnection(conn.stream) catch {};
+            conn.stream.close();
         }
     }
 

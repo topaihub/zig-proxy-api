@@ -271,7 +271,10 @@ pub fn main() !void {
         framework.LogField.string("routing", strategy.name()),
     });
 
-    try srv.listenAndServe();
+    srv.listenAndServe() catch |err| {
+        std.debug.print("Server error: {s}\n", .{@errorName(err)});
+        return err;
+    };
 }
 
 test "framework import works" {
