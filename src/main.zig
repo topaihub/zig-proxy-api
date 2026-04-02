@@ -140,6 +140,14 @@ pub fn main() !void {
     var app_ctx = try framework.AppContext.init(allocator, .{});
     defer app_ctx.deinit();
 
+    // 3b. Add rotating file sink for daily JSONL log files
+    var rotating_sink = logging.RotatingFileSink.init(allocator, "logs", "proxy");
+    defer rotating_sink.deinit();
+    const original_sink = app_ctx.logger.sink;
+    var file_multi = try framework.MultiSink.init(allocator, &.{ original_sink, rotating_sink.asLogSink() });
+    defer file_multi.deinit();
+    app_ctx.logger.sink = file_multi.asLogSink();
+
     // 4. Init auth Manager + FileStore
     var file_store = auth.FileStore.init(allocator, cfg.auth_dir);
     defer file_store.deinit();
