@@ -2,22 +2,123 @@
     "host": "",
     "port": 8317,
     "debug": false,
-    "auth_dir": "~/.cli-proxy-api",
-    "api_keys": ["your-api-key-1"],
+
+    "api_keys": [
+        "your-proxy-key-1",
+        "your-proxy-key-2"
+    ],
+
     "proxy_url": "",
     "request_retry": 3,
+    "max_retry_credentials": 0,
     "max_retry_interval": 30,
+    "passthrough_headers": false,
+    "force_model_prefix": false,
+    "ws_auth": false,
+    "request_log": false,
+
     "routing": {
         "strategy": "round-robin"
     },
+
+    "streaming": {
+        "keepalive_seconds": 0,
+        "bootstrap_retries": 0
+    },
+
     "tls": {
         "enable": false,
         "cert": "",
         "key": ""
     },
-    "gemini_api_key": [],
-    "claude_api_key": [],
-    "codex_api_key": [],
-    "openai_compatibility": [],
-    "vertex_api_key": []
+
+    "remote_management": {
+        "allow_remote": false,
+        "secret_key": "",
+        "disable_control_panel": false
+    },
+
+    "gemini_api_key": [
+        {
+            "api_key": "AIzaSy...",
+            "prefix": "",
+            "base_url": "https://generativelanguage.googleapis.com",
+            "proxy_url": "",
+            "models": [
+                {"name": "gemini-2.5-flash", "alias": "flash"}
+            ],
+            "excluded_models": []
+        }
+    ],
+
+    "claude_api_key": [
+        {
+            "api_key": "sk-ant-...",
+            "prefix": "",
+            "base_url": "https://api.anthropic.com",
+            "proxy_url": "",
+            "models": [],
+            "excluded_models": [],
+            "cloak": {
+                "mode": "auto",
+                "strict_mode": false,
+                "sensitive_words": [],
+                "cache_user_id": false
+            }
+        }
+    ],
+
+    "codex_api_key": [
+        {
+            "api_key": "sk-...",
+            "prefix": "",
+            "base_url": "https://api.openai.com",
+            "websockets": false,
+            "proxy_url": "",
+            "models": [],
+            "excluded_models": []
+        }
+    ],
+
+    "openai_compatibility": [
+        {
+            "name": "openrouter",
+            "prefix": "",
+            "base_url": "https://openrouter.ai/api/v1",
+            "api_key_entries": [
+                {"api_key": "sk-or-...", "proxy_url": ""}
+            ],
+            "models": [
+                {"name": "anthropic/claude-sonnet-4", "alias": "claude-sonnet"}
+            ]
+        }
+    ],
+
+    "vertex_api_key": [],
+
+    "ampcode": {
+        "upstream_url": "",
+        "upstream_api_key": "",
+        "restrict_management_to_localhost": false,
+        "model_mappings": []
+    },
+
+    "claude_header_defaults": {
+        "user_agent": "",
+        "package_version": "",
+        "runtime_version": "",
+        "os": "",
+        "arch": "",
+        "timeout": ""
+    },
+
+    "codex_header_defaults": {
+        "user_agent": "",
+        "beta_features": ""
+    },
+
+    "quota_exceeded": {
+        "switch_project": true,
+        "switch_preview_model": true
+    }
 }

@@ -116,6 +116,26 @@ Set in your AI tool (Claude Code, Cursor, Cline, etc.):
 
 ## Configuration Reference
 
+### Config File Location
+
+| OS | Path |
+|----|------|
+| Linux | `./config.json` (same directory as binary) |
+| macOS | `./config.json` (same directory as binary) |
+| Windows | `.\config.json` (same directory as `.exe`) |
+
+The server looks for `config.json` in the **current working directory** when launched. You can override with `--config=/path/to/config.json`.
+
+A full example is provided in [`config.example.json`](config.example.json). Copy it to get started:
+
+```bash
+cp config.example.json config.json
+# Edit with your API keys:
+nano config.json
+```
+
+### Config Fields
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `port` | number | 8317 | Server port |
