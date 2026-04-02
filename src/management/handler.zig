@@ -70,7 +70,14 @@ pub const ManagementHandler = struct {
     }
 
     fn handleConfig(ctx: *server.Context) anyerror!void {
-        try ctx.json(.ok, .{});
+        // Read actual config.json
+        const content = std.fs.cwd().readFileAlloc(ctx.allocator, "config.json", 256 * 1024) catch {
+            try ctx.raw(.ok, "{\"port\":8317,\"api_keys\":[],\"debug\":false,\"proxy_url\":\"\",\"request_retry\":3,\"routing\":{\"strategy\":\"round-robin\"}}");
+            return;
+        };
+        defer ctx.allocator.free(content);
+        ctx.setHeader("Content-Type", "application/json");
+        try ctx.raw(.ok, content);
     }
 
     fn handleAuthAdd(ctx: *server.Context) anyerror!void {
@@ -100,8 +107,22 @@ pub const ManagementHandler = struct {
             try ctx.json(.bad_request, .{ .success = false, .message = "missing body" });
             return;
         };
-        _ = body;
-        try ctx.json(.ok, .{ .success = true, .message = "config updated" });
+        // Validate JSON
+        _ = std.json.parseFromSlice(std.json.Value, ctx.allocator, body, .{}) catch {
+            try ctx.json(.bad_request, .{ .success = false, .message = "invalid JSON" });
+            return;
+        };
+        // Write to config.json
+        var file = std.fs.cwd().createFile("config.json", .{}) catch {
+            try ctx.json(.internal_server_error, .{ .success = false, .message = "failed to write config" });
+            return;
+        };
+        defer file.close();
+        file.writeAll(body) catch {
+            try ctx.json(.internal_server_error, .{ .success = false, .message = "write error" });
+            return;
+        };
+        try ctx.json(.ok, .{ .success = true, .message = "config saved" });
     }
 
     fn handleLogsRecent(ctx: *server.Context) anyerror!void {

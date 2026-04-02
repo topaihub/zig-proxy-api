@@ -82,9 +82,35 @@ textarea{min-height:120px;font-family:monospace}
   <!-- Config -->
   <div id="tab-config" class="hidden">
     <div class="card">
-      <h3>Configuration</h3>
-      <textarea id="config-editor" placeholder="Loading configuration..."></textarea>
-      <button class="btn" onclick="saveConfig()">Save Configuration</button>
+      <h3>Server Settings</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label style="color:#94a3b8;font-size:12px">Port</label><input id="cfg-port" type="number" value="8317"></div>
+        <div><label style="color:#94a3b8;font-size:12px">Host</label><input id="cfg-host" value=""></div>
+        <div><label style="color:#94a3b8;font-size:12px">Proxy URL</label><input id="cfg-proxy" placeholder="socks5://..."></div>
+        <div><label style="color:#94a3b8;font-size:12px">Request Retry</label><input id="cfg-retry" type="number" value="3"></div>
+        <div><label style="color:#94a3b8;font-size:12px">Routing Strategy</label>
+          <select id="cfg-routing" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;width:100%">
+            <option value="round-robin">Round Robin</option><option value="fill-first">Fill First</option>
+          </select>
+        </div>
+        <div><label style="color:#94a3b8;font-size:12px">Debug</label>
+          <select id="cfg-debug" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:8px;border-radius:6px;width:100%">
+            <option value="false">Off</option><option value="true">On</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>API Keys</h3>
+      <textarea id="cfg-apikeys" placeholder='["key1", "key2"]' style="min-height:60px;font-family:monospace"></textarea>
+    </div>
+    <div class="card">
+      <h3>Advanced (JSON)</h3>
+      <textarea id="config-editor" placeholder="Loading..." style="min-height:200px;font-family:monospace;font-size:12px"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn" onclick="saveConfigForm()">Save</button>
+      <button class="btn" style="background:#475569" onclick="loadConfig()">Reload</button>
     </div>
   </div>
   <!-- Logs -->
@@ -139,15 +165,37 @@ async function loadAuth() {
 async function loadConfig() {
   const d = await api('/config');
   document.getElementById('config-editor').value = JSON.stringify(d, null, 2);
+  // Populate form fields
+  document.getElementById('cfg-port').value = d.port || 8317;
+  document.getElementById('cfg-host').value = d.host || '';
+  document.getElementById('cfg-proxy').value = d.proxy_url || '';
+  document.getElementById('cfg-retry').value = d.request_retry || 3;
+  document.getElementById('cfg-debug').value = d.debug ? 'true' : 'false';
+  if (d.routing) document.getElementById('cfg-routing').value = d.routing.strategy || 'round-robin';
+  if (d.api_keys) document.getElementById('cfg-apikeys').value = JSON.stringify(d.api_keys);
 }
 
-async function saveConfig() {
-  const body = document.getElementById('config-editor').value;
+async function saveConfigForm() {
+  // Read form values and merge into JSON
+  let cfg;
+  try { cfg = JSON.parse(document.getElementById('config-editor').value || '{}'); } catch(e) { cfg = {}; }
+  cfg.port = parseInt(document.getElementById('cfg-port').value) || 8317;
+  cfg.host = document.getElementById('cfg-host').value;
+  cfg.proxy_url = document.getElementById('cfg-proxy').value;
+  cfg.request_retry = parseInt(document.getElementById('cfg-retry').value) || 3;
+  cfg.debug = document.getElementById('cfg-debug').value === 'true';
+  cfg.routing = { strategy: document.getElementById('cfg-routing').value };
+  try { cfg.api_keys = JSON.parse(document.getElementById('cfg-apikeys').value || '[]'); } catch(e) {}
+  // Update JSON editor
+  document.getElementById('config-editor').value = JSON.stringify(cfg, null, 2);
+  // Save
+  const h = {'Content-Type':'application/json'};
+  if (KEY) h['X-Management-Key'] = KEY;
   try {
-    JSON.parse(body);
-    await fetch(BASE + '/config/update', {method:'POST', headers:{'Content-Type':'application/json'}, body});
-    alert('Configuration saved');
-  } catch(e) { alert('Invalid JSON: ' + e.message); }
+    const r = await fetch(BASE + '/config/update', {method:'POST', headers:h, body:JSON.stringify(cfg)});
+    const result = await r.json();
+    alert(result.message || 'Saved');
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 async function loadLogs() {
